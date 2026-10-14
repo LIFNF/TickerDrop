@@ -14,7 +14,7 @@ web/                 site
 
 ## Rules (enforced on-chain)
 
-- `#1–#100` 0.005 ETH, the rest 0.001 ETH. `0x175d…B0dd` is whitelisted at 0 ETH. Mint ETH is forwarded by the contract straight to that address.
+- `#1–#100` 0.005 ETH, the rest 0.001 ETH. The liquidity address (`LP_VAULT`) is whitelisted at 0 ETH. Mint ETH is forwarded by the contract straight to it.
 - Every mint drops 100,000 TICKR. The mint drop totals 317.2M; the remaining 682.8M stays with the deployer for liquidity.
 - TICKR pair buys/sells, NFT book fills and ERC-2981 royalties are all 3%, all into GainPool.
 - Each session is scored on its final close and settled no earlier than 09:30 New York on the next weekday (DST handled on-chain). Positive movers are stacked by gain, descending, until the weight hits 100%. The one that crosses takes the remainder. If the positives sum to under 100%, they split the whole pool pro rata.

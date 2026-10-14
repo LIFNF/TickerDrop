@@ -121,8 +121,6 @@ export function Engine() {
   const pOut = "M730 210 H860";
   const pHold = "M1010 350 V392";
   const pRoll = "M880 350 C 860 420 660 410 620 340";
-  const pMint = "M290 500 H480";
-  const pDrop = "M165 530 C 165 560 260 556 860 556";
 
   return (
     <section className="block wrap rv" id="engine">
@@ -133,7 +131,7 @@ export function Engine() {
       </div>
 
       <div className="panel flow" style={{ padding: "26px 20px 18px" }}>
-        <svg viewBox="20 30 1160 545">
+        <svg viewBox="20 30 1160 440">
           <defs>
             <pattern id="dieGrid" width="11" height="11" patternUnits="userSpaceOnUse">
               <rect width="9" height="9" fill="rgba(255,212,0,.07)" />
@@ -207,26 +205,6 @@ export function Engine() {
           <path d="M616 352l4-12 7 10" fill="none" stroke="rgba(255,255,255,.45)" />
           <text x="740" y="412" fill={DIM} fontSize="11" textAnchor="middle" letterSpacing="1">
             {e.roll}
-          </text>
-
-          <line x1="40" x2="1160" y1="462" y2="462" stroke="rgba(255,255,255,.07)" />
-          <Node x={40} y={474} w={250} h={56} title={e.mintEth} color={Y} />
-          <path className="wire" d={pMint} stroke={Y} strokeOpacity=".4" />
-          <path className="run" d={pMint} stroke={Y} />
-          <Packet path={pMint} color={Y} dur={1.8} />
-          <g>
-            <path d="M480 474h228l12 12v44h-240z" fill="#0b0d16" stroke="rgba(255,255,255,.25)" />
-            <text x="498" y="498" fill="#e8e9f0" fontSize="13" fontWeight="700" letterSpacing="1">
-              {e.lp.toUpperCase()}
-            </text>
-            <text x="498" y="517" fill={DIM} fontSize="11">
-              0x175d…B0dd
-            </text>
-          </g>
-          <path d={pDrop} fill="none" stroke={C} strokeOpacity=".45" strokeDasharray="4 6" />
-          <Packet path={pDrop} color={C} dur={3} delay={0.5} />
-          <text x="1160" y="548" fill={C} fontSize="12" textAnchor="end">
-            {e.drop}
           </text>
         </svg>
       </div>

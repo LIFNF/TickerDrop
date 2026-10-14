@@ -23,7 +23,6 @@ export const addr = {
   tickr: deployed.tickr as Address,
   pool: deployed.pool as Address,
   drop: deployed.drop as Address,
-  lp: "0x175d6A654568009273Fd08f1a29BE998b8BCB0dd" as Address,
 };
 
 export const live = !/^0x0{40}$/i.test(addr.drop);

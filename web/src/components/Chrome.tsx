@@ -40,12 +40,11 @@ export function Footer() {
               ["TICKERDROP", addr.drop],
               ["TICKR", addr.tickr],
               ["GAINPOOL", addr.pool],
-              ["LP", addr.lp],
             ] as const
           ).map(([k, a]) => (
             <a key={k} href={link(a)} target="_blank" rel="noreferrer">
               {k.padEnd(11, "\u00a0")}
-              {live || k === "LP" ? short(a) : "—"}
+              {live ? short(a) : "—"}
             </a>
           ))}
         </div>

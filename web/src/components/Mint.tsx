@@ -65,7 +65,7 @@ export function Mint({ tickers, state }: { tickers: Ticker[]; state: State }) {
 
       <div className="route">
         <span>{m.route}</span>
-        <code>{addr.lp}</code>
+        <code>{live ? addr.drop : m.tba}</code>
         <span className="wl">● {m.wl}</span>
       </div>
 
