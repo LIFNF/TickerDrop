@@ -7,11 +7,11 @@ export const t = {
   hero: {
     kicker: "NASDAQ × ROBINHOOD CHAIN",
     line1: "3,172 Nasdaq listings. 3,172 cards.",
-    line2: "Every close, the gainers board decides who takes the 3%.",
+    line2: "The final close prints the board. The next open pays it.",
     stats: [
       ["3172", "cards, id = market cap rank"],
       ["3%", "on every Tickr and NFT trade"],
-      ["16:00", "New York close, settled on-chain"],
+      ["09:30", "next open settles the last close"],
       ["100%", "cumulative gain cap"],
     ],
     die: "DIE MAP · ONE CELL PER LISTING · #1 NVDA FIRST",
@@ -25,8 +25,8 @@ export const t = {
     nft: "NFT SALE",
     inTkn: "3% · TICKR",
     inEth: "3% · ETH",
-    clock: "16:00 NY",
-    board: "Today's gainers",
+    clock: "09:30 NY",
+    board: "Last close gainers",
     holder: "Holder",
     hold: "≥ 1 TICKR",
     roll: "Rolls to next session",
@@ -36,7 +36,7 @@ export const t = {
     points: [
       ["Two assets", "Tickr fees pay out in Tickr, NFT fees in ETH. One card, two income streams."],
       ["No discretion", "Ordering, cutoff, pro rata, eligibility and rollover live in the contract. A settlement call can't bend them."],
-      ["Start", "Counting begins at the first close after Tickr opens for trading. Weekends and market holidays are skipped."],
+      ["Clock", "Intraday moves don't count. A session is scored on its final close and paid at the next 09:30 open. Weekends and holidays settle nothing; fees keep stacking into the next payout."],
     ],
   },
 
@@ -61,12 +61,12 @@ export const t = {
     under: (sum: string) => `All positive movers add up to ${sum}, under 100%: they split the entire pool pro rata.`,
     none: "Nothing closed green. No payout. The whole pool rolls into the next session.",
     rules: [
-      ["Eligibility", "Hold the card for that listing and ≥ 1 TICKR in the same wallet, checked at settlement."],
+      ["Eligibility", "Hold the card for that listing and ≥ 1 TICKR in the same wallet, checked at the open that settles it."],
       ["Order", "Day gain, descending. Ties go to the lower id."],
       ["Cutoff", "Stop the moment cumulative weight reaches 100%. The one that crosses takes the remainder."],
       ["Pro rata", "If every positive gain together is under 100%, they split the whole pool by gain."],
       ["Excluded", "Flat and red closes get nothing."],
-      ["Rollover", "Unminted slots, holders under 1 TICKR, and sessions with no gainers all roll into the next settlement."],
+      ["Rollover", "Unminted slots, holders under 1 TICKR, sessions with no gainers, weekends and holidays all roll into the next settlement."],
     ],
   },
 

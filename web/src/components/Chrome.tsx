@@ -54,7 +54,7 @@ export function Footer() {
           <a href={explorer || undefined} target="_blank" rel="noreferrer">
             {chain.name} · {chain.id}
           </a>
-          <a>16:00 America/New_York</a>
+          <a>Close 16:00 · Settle 09:30 · America/New_York</a>
         </div>
         <div>
           <h5>{t.foot.source}</h5>

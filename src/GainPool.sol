@@ -21,7 +21,9 @@ interface IDrop {
 
 /// @title GainPool
 /// @notice Collects the 3% from Tickr pairs (Tickr) and from the NFT book / royalties (ETH),
-///         then pays it out once per US session to the holders of that day's top gainers.
+///         then pays it out to the holders of each session's top gainers. A session is settled
+///         on its final close, no earlier than 09:30 New York on the next weekday; fees keep
+///         stacking until then, so weekends and holidays roll into the next settlement.
 ///
 ///         Gainers are submitted sorted by % change, desc. Each one is weighted by its own gain,
 ///         running total capped at 100%: the gainer that crosses the cap gets the remainder and
@@ -33,7 +35,8 @@ contract GainPool is Ownable, ReentrancyGuard {
 
     uint256 public constant FULL = 1_000_000; // 100% in gain units (1 unit = 0.0001%)
     uint256 public constant MIN_HOLD = 1 ether;
-    uint256 public constant CLOSE = 21 hours; // 16:00 New York is 20:00 or 21:00 UTC
+    uint256 public constant OPEN = 9 hours + 30 minutes; // New York wall clock
+    uint256 public constant CLOSE = 16 hours;
     uint256 private constant PUSH_GAS = 30_000;
 
     IERC20 public immutable tickr;
@@ -186,13 +189,51 @@ contract GainPool is Ownable, ReentrancyGuard {
         return rounds.length;
     }
 
-    /// @notice Earliest timestamp `day` can be settled, 0 if it never can.
+    /// @notice Earliest timestamp `day` can be settled (next weekday's 09:30 New York), 0 if never.
     function settleableAt(uint32 day) public view returns (uint256) {
         uint256 live = ITickr(address(tickr)).liveAt();
-        uint256 close = uint256(day) * 1 days + CLOSE;
         uint256 wd = (uint256(day) + 4) % 7; // 0 = Sunday
-        if (live == 0 || day <= lastDay || close <= live || wd == 0 || wd == 6) return 0;
-        return close;
+        if (live == 0 || day <= lastDay || wd == 0 || wd == 6) return 0;
+        if (nyTime(day, CLOSE) <= live) return 0;
+        uint256 next = uint256(day) + (wd == 5 ? 3 : 1);
+        return nyTime(next, OPEN);
+    }
+
+    /// @notice UTC timestamp of New York wall-clock time `clock` on `day` (days since epoch).
+    function nyTime(uint256 day, uint256 clock) public pure returns (uint256) {
+        return day * 1 days + clock + (_dst(day) ? 4 hours : 5 hours);
+    }
+
+    // US rule: second Sunday of March through the day before the first Sunday of November.
+    // Market hours never touch the 02:00 switch, so a date-level check is exact.
+    function _dst(uint256 day) private pure returns (bool) {
+        uint256 y = _year(day);
+        uint256 mar1 = _epochDay(y, 3, 1);
+        uint256 nov1 = _epochDay(y, 11, 1);
+        uint256 start = mar1 + (7 - (mar1 + 4) % 7) % 7 + 7;
+        uint256 end = nov1 + (7 - (nov1 + 4) % 7) % 7;
+        return day >= start && day < end;
+    }
+
+    // Hinnant's civil calendar algorithms, restricted to dates after 1970.
+    function _year(uint256 day) private pure returns (uint256 y) {
+        uint256 z = day + 719_468;
+        uint256 era = z / 146_097;
+        uint256 doe = z - era * 146_097;
+        uint256 yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+        uint256 doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        uint256 mp = (5 * doy + 2) / 153;
+        y = yoe + era * 400;
+        if (mp >= 10) ++y; // January, February
+    }
+
+    function _epochDay(uint256 y, uint256 m, uint256 d) private pure returns (uint256) {
+        if (m <= 2) --y;
+        uint256 era = y / 400;
+        uint256 yoe = y - era * 400;
+        uint256 doy = (153 * (m > 2 ? m - 3 : m + 9) + 2) / 5 + d - 1;
+        uint256 doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+        return era * 146_097 + doe - 719_468;
     }
 
     // -------------------------------------------------------------- internals

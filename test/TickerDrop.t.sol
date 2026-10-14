@@ -71,7 +71,8 @@ contract TickerDropTest is Test {
 
     function _live() internal {
         tkr.goLive();
-        vm.warp(uint256(TUE) * 1 days + 21 hours + 5 minutes);
+        // Wednesday 09:30 New York (EDT)
+        vm.warp(uint256(TUE + 1) * 1 days + 13 hours + 30 minutes);
     }
 
     // ------------------------------------------------------------------ mint
@@ -348,19 +349,20 @@ contract TickerDropTest is Test {
         vm.expectRevert(GainPool.NotReporter.selector);
         pool.settle(TUE, none, nog);
 
+        // Tuesday's close is not final until Wednesday's open
+        vm.warp(uint256(TUE + 1) * 1 days + 13 hours + 29 minutes);
+        vm.prank(reporter);
+        vm.expectRevert(abi.encodeWithSelector(GainPool.TooEarly.selector, uint256(TUE + 1) * 1 days + 13.5 hours));
+        pool.settle(TUE, none, nog);
+
         // Saturday
-        vm.warp(uint256(TUE + 4) * 1 days + 22 hours);
+        vm.warp(uint256(TUE + 6) * 1 days);
         vm.prank(reporter);
         vm.expectRevert(abi.encodeWithSelector(GainPool.BadDay.selector, TUE + 4));
         pool.settle(TUE + 4, none, nog);
 
-        // Wednesday, before 21:00 UTC
-        vm.warp(uint256(TUE + 1) * 1 days + 20 hours);
-        vm.prank(reporter);
-        vm.expectRevert(abi.encodeWithSelector(GainPool.TooEarly.selector, uint256(TUE + 1) * 1 days + 21 hours));
-        pool.settle(TUE + 1, none, nog);
-
-        vm.warp(uint256(TUE + 1) * 1 days + 21 hours);
+        // Wednesday's session, settled Thursday at the open
+        vm.warp(uint256(TUE + 2) * 1 days + 13.5 hours);
         vm.prank(reporter);
         pool.settle(TUE + 1, none, nog);
 
@@ -371,11 +373,54 @@ contract TickerDropTest is Test {
     }
 
     function test_sessionBeforeLiveSkipped() public {
-        vm.warp(uint256(TUE) * 1 days + 22 hours);
+        vm.warp(uint256(TUE) * 1 days + 20 hours); // 16:00 EDT
         tkr.goLive();
+        vm.warp(uint256(TUE + 1) * 1 days + 14 hours);
         vm.prank(reporter);
         vm.expectRevert(abi.encodeWithSelector(GainPool.BadDay.selector, TUE));
         pool.settle(TUE, new uint16[](0), new uint32[](0));
+    }
+
+    function test_openClock() public {
+        tkr.goLive();
+        // Fri 2025-10-17 (EDT) -> Mon 13:30 UTC
+        assertEq(pool.settleableAt(20378), 20381 * 1 days + 13.5 hours);
+        // Fri 2025-10-31 -> Mon 2025-11-03, DST ended Sunday -> 14:30 UTC
+        assertEq(pool.settleableAt(20392), 20395 * 1 days + 14.5 hours);
+        // Thu 2026-03-05 (EST) -> Fri 14:30 UTC
+        assertEq(pool.settleableAt(20517), 20518 * 1 days + 14.5 hours);
+        // Fri 2026-03-06 -> Mon 2026-03-09, DST began Sunday -> 13:30 UTC
+        assertEq(pool.settleableAt(20518), 20521 * 1 days + 13.5 hours);
+        // Wed 2025-12-31 -> Thu 2026-01-01, across the year
+        assertEq(pool.settleableAt(20453), 20454 * 1 days + 14.5 hours);
+        // close times
+        assertEq(pool.nyTime(TUE, 16 hours), uint256(TUE) * 1 days + 20 hours);
+        assertEq(pool.nyTime(20517, 16 hours), 20517 * 1 days + 21 hours);
+    }
+
+    function test_weekendFeesRollIntoMonday() public {
+        uint32 fri = 20378;
+        _mint(alice, 10);
+        tkr.goLive();
+        vm.deal(address(pool), 1 ether);
+        // weekend fees land before Monday's open
+        vm.warp(uint256(fri + 2) * 1 days);
+        vm.deal(address(pool), 1.5 ether);
+
+        uint16[] memory ids = new uint16[](1);
+        uint32[] memory g = new uint32[](1);
+        (ids[0], g[0]) = (10, 50_000);
+
+        vm.warp(uint256(fri + 3) * 1 days + 13.5 hours - 1);
+        vm.prank(reporter);
+        vm.expectRevert(abi.encodeWithSelector(GainPool.TooEarly.selector, uint256(fri + 3) * 1 days + 13.5 hours));
+        pool.settle(fri, ids, g);
+
+        vm.warp(uint256(fri + 3) * 1 days + 13.5 hours);
+        uint256 a0 = alice.balance;
+        vm.prank(reporter);
+        pool.settle(fri, ids, g);
+        assertEq(alice.balance - a0, 1.5 ether);
     }
 
     function test_rejectingHolderGetsCredit() public {

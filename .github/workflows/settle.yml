@@ -1,15 +1,15 @@
 ﻿name: settle
 
-# 16:00 New York is 20:00 UTC in summer, 21:00 UTC in winter. Both slots fire;
-# the script decides which one is real and the other exits.
+# 09:30 New York is 13:30 UTC in summer, 14:30 UTC in winter. Both slots fire;
+# the script settles once the market is actually open and exits otherwise.
 on:
   schedule:
-    - cron: "6 20 * * 1-5"
-    - cron: "6 21 * * 1-5"
+    - cron: "31 13 * * 1-5"
+    - cron: "31 14 * * 1-5"
   workflow_dispatch:
     inputs:
       dry:
-        description: "build the round without sending"
+        description: "print the rounds without sending"
         type: boolean
         default: false
 
@@ -20,7 +20,7 @@ concurrency:
 jobs:
   settle:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -33,10 +33,3 @@ jobs:
           REPORTER_KEY: ${{ secrets.REPORTER_KEY }}
           RPC_URL: ${{ secrets.RPC_URL }}
           DRY: ${{ inputs.dry && '1' || '0' }}
-      - uses: actions/upload-artifact@v5
-        if: always()
-        with:
-          name: round
-          path: out/round-*.json
-          if-no-files-found: ignore
-          retention-days: 90

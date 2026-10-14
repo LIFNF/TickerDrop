@@ -1,0 +1,38 @@
+name: snapshot
+
+# Records the final close right after 16:00 New York (20:00 UTC summer, 21:00 UTC winter).
+# The file lands in data/sessions/ and is settled at the next open.
+on:
+  schedule:
+    - cron: "8 20 * * 1-5"
+    - cron: "8 21 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --omit=dev
+      - run: node keeper/snapshot.mjs
+      - name: commit
+        run: |
+          git add -A data
+          git diff --cached --quiet && exit 0
+          git config user.name "tickerdrop-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "close $(TZ=America/New_York date +%F)"
+          git pull --rebase -q
+          git push

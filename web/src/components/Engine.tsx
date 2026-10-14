@@ -175,8 +175,8 @@ export function Engine() {
             {Array.from({ length: 12 }, (_, i) => (
               <line key={i} y1="-26" y2={i % 3 ? "-23" : "-20"} stroke="rgba(255,255,255,.4)" transform={`rotate(${i * 30})`} />
             ))}
-            <line y2="-18" stroke={Y} strokeWidth="2" transform="rotate(120)" />
-            <line y2="-12" stroke="#fff" strokeWidth="2" />
+            <line y2="-18" stroke={Y} strokeWidth="2" transform="rotate(180)" />
+            <line y2="-12" stroke="#fff" strokeWidth="2" transform="rotate(285)" />
             <line y1="30" y2="82" stroke={Y} strokeDasharray="2 4" />
             <text y="-40" textAnchor="middle" fill={Y} fontSize="12" letterSpacing="1.5">
               {e.clock}
