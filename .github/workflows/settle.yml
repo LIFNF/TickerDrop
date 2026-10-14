@@ -1,0 +1,42 @@
+name: settle
+
+# 16:00 New York is 20:00 UTC in summer, 21:00 UTC in winter. Both slots fire;
+# the script decides which one is real and the other exits.
+on:
+  schedule:
+    - cron: "6 20 * * 1-5"
+    - cron: "6 21 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: "build the round without sending"
+        type: boolean
+        default: false
+
+concurrency:
+  group: settle
+  cancel-in-progress: false
+
+jobs:
+  settle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --omit=dev
+      - run: node keeper/settle.mjs
+        env:
+          REPORTER_KEY: ${{ secrets.REPORTER_KEY }}
+          RPC_URL: ${{ secrets.RPC_URL }}
+          DRY: ${{ inputs.dry && '1' || '0' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: round
+          path: out/round-*.json
+          if-no-files-found: ignore
+          retention-days: 90

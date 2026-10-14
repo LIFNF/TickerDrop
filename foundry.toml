@@ -1,0 +1,22 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["node_modules"]
+auto_detect_remappings = false
+solc = "0.8.28"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 800
+via_ir = true
+remappings = ["@openzeppelin/=node_modules/@openzeppelin/", "forge-std/=node_modules/forge-std/src/"]
+fs_permissions = [{ access = "read", path = "./data" }, { access = "read-write", path = "./web/src/chain" }]
+
+[rpc_endpoints]
+robinhood = "https://rpc.mainnet.chain.robinhood.com"
+robinhood_testnet = "https://rpc.testnet.chain.robinhood.com"
+
+[lint]
+exclude_lints = ["incorrect-shift", "unsafe-typecast", "block-timestamp"]
+
+[fmt]
+line_length = 120
