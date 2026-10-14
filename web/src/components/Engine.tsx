@@ -1,4 +1,4 @@
-import { useT } from "../lib/i18n";
+import { t } from "../lib/copy";
 import { SUPPLY, DROP } from "../chain/config";
 
 const Y = "#ffd400";
@@ -115,7 +115,6 @@ function Board({ label, out, clip }: { label: string; out: string; clip: string 
 }
 
 export function Engine() {
-  const { t } = useT();
   const e = t.engine;
   const pA = "M290 115 H380 C430 115 430 170 480 170";
   const pB = "M290 295 H380 C430 295 430 250 480 250";
@@ -247,7 +246,6 @@ export function Engine() {
 }
 
 function Supply() {
-  const { t } = useT();
   const drop = SUPPLY * DROP;
   const lp = 1e9 - drop;
   const r = 100;

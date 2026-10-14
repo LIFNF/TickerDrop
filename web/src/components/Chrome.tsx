@@ -1,10 +1,9 @@
 import { addr, chain, explorer, live } from "../chain/config";
 import { short } from "../lib/format";
-import { useT } from "../lib/i18n";
+import { t } from "../lib/copy";
 import { useWallet } from "../lib/wallet";
 
 export function Nav() {
-  const { t, lang, setLang } = useT();
   const { account, connect, wrongChain } = useWallet();
   return (
     <div className="nav">
@@ -21,14 +20,6 @@ export function Nav() {
           ))}
         </nav>
         {!live && <span className="chip">{t.offline}</span>}
-        <div className="lang">
-          <button className={lang === "zh" ? "on" : ""} onClick={() => setLang("zh")}>
-            中
-          </button>
-          <button className={lang === "en" ? "on" : ""} onClick={() => setLang("en")}>
-            EN
-          </button>
-        </div>
         <button className={`btn sm ${account ? "ghost c" : ""}`} onClick={connect}>
           {account ? (wrongChain ? t.wrongChain : short(account)) : t.connect}
         </button>
@@ -38,7 +29,6 @@ export function Nav() {
 }
 
 export function Footer() {
-  const { t } = useT();
   const link = (a: string) => (explorer && live ? `${explorer}/address/${a}` : undefined);
   return (
     <footer>

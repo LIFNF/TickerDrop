@@ -2,13 +2,12 @@ import { useDeferredValue, useMemo, useState } from "react";
 import { addr, dropAbi, live, PRICE, SUPPLY, TOP, TOP_PRICE } from "../chain/config";
 import type { State, Ticker } from "../lib/data";
 import { compact, eth } from "../lib/format";
-import { useT } from "../lib/i18n";
+import { t } from "../lib/copy";
 import { useWallet } from "../lib/wallet";
 
 const MAX = 100;
 
 export function Mint({ tickers, state }: { tickers: Ticker[]; state: State }) {
-  const { t } = useT();
   const m = t.mint;
   const { send } = useWallet();
   const [q, setQ] = useState("");

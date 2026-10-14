@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useT } from "../lib/i18n";
+import { t } from "../lib/copy";
 import type { Ticker } from "../lib/data";
 
 const COLS = 61;
@@ -158,7 +158,6 @@ function Die({ tickers }: { tickers: Ticker[] }) {
 }
 
 export function Hero({ tickers }: { tickers: Ticker[] }) {
-  const { t } = useT();
   return (
     <header className="hero wrap">
       <div className="kicker">{t.hero.kicker}</div>

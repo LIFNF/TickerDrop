@@ -12,7 +12,7 @@
   --c: #00f0ff;
   --g: #39ff88;
   --cut: 14px;
-  --head: "Chakra Petch", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --head: "Chakra Petch", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
   color-scheme: dark;
 }
@@ -130,25 +130,6 @@ input {
 
 .nav nav a:hover {
   color: var(--y);
-}
-
-.lang {
-  display: flex;
-  border: 1px solid var(--line2);
-  font: 12px var(--mono);
-}
-
-.lang button {
-  background: none;
-  border: 0;
-  padding: 5px 9px;
-  cursor: pointer;
-  color: var(--dim);
-}
-
-.lang button.on {
-  background: var(--txt);
-  color: var(--bg);
 }
 
 .chip {

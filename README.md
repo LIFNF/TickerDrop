@@ -1,67 +1,67 @@
 # TickerDrop
 
-纳斯达克 3172 只普通股 / ADR，按市值排名编号，一只股票一张卡。Robinhood Chain（4663）。
+3,172 Nasdaq common shares and ADRs, ranked by market cap. One listing, one card. Robinhood Chain (4663).
 
 ```
-src/Tickr.sol        TICKR，1B 固定总量，交易对买卖 3% 进 GainPool
-src/TickerDrop.sol   ERC721，铸造 / 内置交易簿 / 链上 SVG，成交 3% 进 GainPool
-src/GainPool.sol     收费 + 每个交易日收盘结算
-keeper/settle.mjs    收盘后抓取涨幅，提交 settle()
-tools/snapshot.mjs   生成股票表（data/tickers.*）
-web/                 前端
+src/Tickr.sol        TICKR, fixed 1B supply, 3% on pair buys/sells to GainPool
+src/TickerDrop.sol   ERC721: mint, built-in order book, on-chain SVG; 3% of every fill to GainPool
+src/GainPool.sol     fee pool + per-session settlement
+keeper/settle.mjs    pulls the close, posts settle()
+tools/snapshot.mjs   builds the ticker table (data/tickers.*)
+web/                 site
 ```
 
-## 规则（合约强制）
+## Rules (enforced on-chain)
 
-- `#1–#100` 0.005 ETH，其余 0.001 ETH；`0x175d…B0dd` 白名单 0 ETH。铸造款由合约直接转入该地址。
-- 每张铸造到账 100,000 TICKR。铸造派发共 317.2M，剩余 682.8M 留在部署地址用于建池。
-- TICKR 交易对买卖、NFT 交易簿成交、ERC-2981 版税，均为 3%，全部进入 GainPool。
-- 每个美股交易日收盘后：正涨幅按降序累加权重，到 100% 截止，跨线者取余量；不足 100% 按涨幅占比分全池。
-- 0% / 负涨幅不分；当日无正涨幅不分，滚存。
-- 卡未铸造、或持有人 TICKR < 1，该份额滚存。
-- TICKR 手续费以 TICKR 发，ETH 手续费以 ETH 发（发送失败转为 `credit`，`claim()` 领取）。
-- `goLive()` 之后的第一个收盘才开始结算；周末、未收盘、重复日期一律 revert。
-- NFT 只允许白名单 operator 授权，第三方市场无法绕开 3%。
+- `#1–#100` 0.005 ETH, the rest 0.001 ETH. `0x175d…B0dd` is whitelisted at 0 ETH. Mint ETH is forwarded by the contract straight to that address.
+- Every mint drops 100,000 TICKR. The mint drop totals 317.2M; the remaining 682.8M stays with the deployer for liquidity.
+- TICKR pair buys/sells, NFT book fills and ERC-2981 royalties are all 3%, all into GainPool.
+- After each US close: positive movers are stacked by gain, descending, until the weight hits 100%. The one that crosses takes the remainder. If the positives sum to under 100%, they split the whole pool pro rata.
+- Flat and red closes get nothing. A session with no gainers pays nothing and rolls over.
+- Unminted slots and holders with < 1 TICKR forfeit their cut to the next session.
+- TICKR fees pay out in TICKR, ETH fees in ETH. Failed ETH pushes become `credit`, withdrawn via `claim()`.
+- Settlement starts at the first close after `goLive()`. Weekends, sessions not yet closed and repeated days revert.
+- NFT approvals are limited to allowlisted operators, so third-party venues can't skip the 3%.
 
-## 部署
+## Deploy
 
 ```bash
 npm i
 forge test
 
-# REPORTER = 每日提交结算的地址（keeper 私钥对应的地址）
+# REPORTER = address that posts the daily result (the keeper key's address)
 REPORTER=0x... forge script script/Deploy.s.sol --rpc-url robinhood --broadcast --private-key $PK
 ```
 
-脚本会部署三个合约、互相绑定、把 317.2M TICKR 转入 NFT 合约、开启铸造，并把地址写入 `web/src/chain/deployed.json`。提交这个文件，网站和 keeper 都读它。
+The script deploys and wires all three contracts, moves 317.2M TICKR into the NFT contract, opens the mint, and writes the addresses to `web/src/chain/deployed.json`. Commit that file; the site and the keeper both read it.
 
-上线顺序：
+Launch order:
 
-1. 部署后先算出 TICKR/WETH 交易对地址，`Tickr.setPair(pair, true)`。在 `goLive()` 之前任何人都无法往这个池子里加流动性或交易。
-2. 铸造结束：`TickerDrop.closeMint()`，`sweep()` 收回未铸造部分的 TICKR。
-3. 用 LP 地址里的 ETH + 部署地址的 TICKR 建池（V2 类 AMM；V3 不支持转账扣费代币的卖出）。
-4. `Tickr.goLive()`。下一个美东收盘开始第一次结算。
-5. 配置完成后可 `renounceOwnership()`。
+1. Compute the TICKR/WETH pair address and call `Tickr.setPair(pair, true)` before the mint opens. Until `goLive()`, nobody can add liquidity to or trade on it.
+2. When the mint ends: `TickerDrop.closeMint()`, then `sweep()` to pull back the unminted drop.
+3. Seed the pool with the ETH in the LP address plus the deployer's TICKR (V2-style AMM; V3 can't sell fee-on-transfer tokens).
+4. `Tickr.goLive()`. The next New York close is the first settlement.
+5. Once configured, `renounceOwnership()` if you want.
 
-## 每日结算
+## Daily settlement
 
-GitHub Actions `settle` 在每个工作日 20:06 / 21:06 UTC 触发（覆盖夏令时与冬令时），脚本自己判断是否已收盘、是否已结算、是否节假日。
+The `settle` workflow fires at 20:06 and 21:06 UTC on weekdays (covers EDT and EST). The script itself checks whether the market has closed, whether the day is already settled, and whether it's a holiday.
 
-仓库 Settings → Secrets → Actions：
+Repo Settings → Secrets → Actions:
 
-- `REPORTER_KEY` reporter 私钥（只需少量 ETH 付 gas）
-- `RPC_URL` 可选，默认公共节点
+- `REPORTER_KEY` reporter private key (needs a little ETH for gas)
+- `RPC_URL` optional, defaults to the public endpoint
 
-每次结算的原始数据（全部股票涨幅 + 提交内容）作为 artifact 保存 90 天，可对照链上 `Paid` 事件复核。也可以在任意服务器上跑：
+Each run uploads the raw data (every listing's change + what was submitted) as an artifact kept 90 days, so it can be checked against the on-chain `Paid` events. It also runs on any server:
 
 ```bash
 REPORTER_KEY=0x... node keeper/settle.mjs
 ```
 
-## 前端
+## Site
 
 ```bash
 cd web && npm i && npm run dev
 ```
 
-push 到 `main` 自动发布到 GitHub Pages。
+Pushes to `main` publish to GitHub Pages.

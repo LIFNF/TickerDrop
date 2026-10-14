@@ -3,11 +3,10 @@ import { parseEther } from "viem";
 import { addr, dropAbi, explorer, live } from "../chain/config";
 import type { State, Ticker } from "../lib/data";
 import { eth, short } from "../lib/format";
-import { useT } from "../lib/i18n";
+import { t } from "../lib/copy";
 import { useWallet } from "../lib/wallet";
 
 export function Book({ tickers, state }: { tickers: Ticker[]; state: State }) {
-  const { t } = useT();
   const b = t.book;
   const { account, send, connect } = useWallet();
   const [prices, setPrices] = useState<Record<number, string>>({});

@@ -2,13 +2,12 @@ import { Fragment, useState } from "react";
 import { addr, poolAbi } from "../chain/config";
 import { winners, type Round, type State, type Ticker } from "../lib/data";
 import { dayStr, eth, pct, tkn } from "../lib/format";
-import { useT } from "../lib/i18n";
+import { t } from "../lib/copy";
 import { useWallet } from "../lib/wallet";
 
 type Win = Awaited<ReturnType<typeof winners>>;
 
 export function Vault({ tickers, state }: { tickers: Ticker[]; state: State }) {
-  const { t } = useT();
   const v = t.vault;
   const { account, send, connect } = useWallet();
   const [open, setOpen] = useState<number>();

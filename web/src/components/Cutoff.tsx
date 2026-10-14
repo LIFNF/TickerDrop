@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useT } from "../lib/i18n";
+import { t } from "../lib/copy";
 import type { Ticker } from "../lib/data";
 
 type Mv = { s: string; g: number };
@@ -75,7 +75,6 @@ function solve(list: Mv[]) {
 const f = (n: number, d = 2) => n.toFixed(d).replace(/\.?0+$/, "") + "%";
 
 export function Cutoff({ tickers }: { tickers: Ticker[] }) {
-  const { t } = useT();
   const c = t.cutoff;
   const [tab, setTab] = useState(0);
   const [seed, setSeed] = useState(0);
