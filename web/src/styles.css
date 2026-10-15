@@ -2360,3 +2360,48 @@ td.r {
     transition: none !important;
   }
 }
+
+/* Pixel hardware: fixed grid artwork, stepped metal edges, recessed displays. */
+.hardware,
+.n-core > .die {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+.n-core::before,
+.n-core::after,
+.n-mint::before,
+.n-mint::after,
+.n-clock::before,
+.n-clock::after,
+.n-board::before,
+.n-board::after,
+.n-holder::before,
+.n-holder::after { content: none; }
+.n-mint, .n-clock, .n-board, .n-holder {
+  padding: 48px 44px 54px;
+  filter: drop-shadow(0 12px 0 #030507);
+}
+.n-mint { --k: #ff65de; }
+.n-board { --k: #29d8ff; }
+.n-holder { --k: #56efa3; }
+.node:hover > .hardware,
+.node.on > .hardware { filter: brightness(1.22); }
+.n-core > .die { filter: drop-shadow(0 8px 0 #030507); }
+.dial { flex-shrink: 0; image-rendering: pixelated; }
+.node .bar,
+.node .track {
+  border-radius: 0;
+  border: 2px solid #39424e;
+  background: #05080d;
+}
+.node .bar i,
+.node .track i {
+  border-radius: 0;
+  background: repeating-linear-gradient(90deg, var(--k, #ffd400) 0 6px, #111923 6px 8px);
+}
+.node .chip { border-radius: 0; border: 2px solid #555e69; }

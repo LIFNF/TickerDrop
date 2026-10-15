@@ -8,6 +8,7 @@ import { gainPct, type Board } from "../lib/session";
 import { useWallet } from "../lib/wallet";
 import type { Focus } from "./draw";
 import { Gpu } from "./Gpu";
+import { Clock, Die, Hardware } from "./sprites";
 import { NODES, type NodeId } from "./layout";
 
 const sp = t.space;
@@ -19,20 +20,6 @@ export function Countdown() {
     return () => clearInterval(id);
   }, []);
   return <span className="mono">{hms(nextOpen(now) - now)}</span>;
-}
-
-function Dial({ size = 120 }: { size?: number }) {
-  return (
-    <svg className="dial" viewBox="-50 -50 100 100" width={size} height={size}>
-      <circle r="46" fill="#07080d" stroke="#ffd400" strokeOpacity=".6" />
-      {Array.from({ length: 60 }, (_, i) => (
-        <line key={i} y1="-43" y2={i % 5 ? "-40" : "-35"} stroke={i % 15 ? "rgba(255,255,255,.3)" : "#ffd400"} transform={`rotate(${i * 6})`} />
-      ))}
-      <line y2="-30" stroke="#ffd400" strokeWidth="2.5" transform="rotate(180)" />
-      <line y2="-20" stroke="#fff" strokeWidth="3" transform="rotate(285)" />
-      <circle r="3" fill="#ffd400" />
-    </svg>
-  );
 }
 
 type Props = { tickers: Ticker[]; state: State; board?: Board; focus: Focus; onOpen(id: NodeId): void };
@@ -115,7 +102,7 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
     clock: (
       <>
         <div className="split">
-          <Dial size={104} />
+          <Clock size={104} />
           <div>
             <b className="big y">09:30</b>
             <small>America/New_York</small>
@@ -209,6 +196,8 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
           onClick={(e) => e.detail === 0 && onOpen(b.id)}
         >
           <span className="pin">{sp.pins[b.id]}</span>
+          {b.id === "core" && <Die />}
+          {(b.id === "mint" || b.id === "clock" || b.id === "board" || b.id === "holder") && <Hardware kind={b.id} />}
           {body[b.id]}
         </button>
       ))}
