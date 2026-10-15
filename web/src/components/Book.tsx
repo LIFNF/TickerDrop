@@ -33,7 +33,7 @@ export function Book({ tickers, state }: { tickers: Ticker[]; state: State }) {
     send(`CANCEL #${id}`, (w, a) => w.writeContract({ account: a, chain: w.chain, address: addr.drop, abi: dropAbi, functionName: "unlist", args: [BigInt(id)] }));
 
   return (
-    <section className="block wrap rv" id="book">
+    <section className="mod" id="book">
       <div className="sh">
         <span className="idx">04</span>
         <h2>{b.title}</h2>

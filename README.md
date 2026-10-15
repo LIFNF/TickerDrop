@@ -68,7 +68,10 @@ REPORTER_KEY=0x... node keeper/settle.mjs
 ## Site
 
 ```bash
+node tools/feed.mjs        # packs the last 10 sessions into web/public/sessions.json
 cd web && npm i && npm run dev
 ```
 
-Pushes to `main` publish to GitHub Pages.
+One infinite canvas: every listing is a star, placed by market cap rank on a spiral around GainPool and lit by its last close. Drag to move, scroll or pinch to zoom, click a node or a star to open it. `#mint`, `#t/NVDA` deep-link straight in.
+
+Pushes to `main` and every finished `snapshot` run publish to GitHub Pages.

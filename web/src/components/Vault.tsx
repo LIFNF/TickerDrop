@@ -24,7 +24,7 @@ export function Vault({ tickers, state }: { tickers: Ticker[]; state: State }) {
   const eligible = state.mine.length > 0 && state.tickr >= 10n ** 18n;
 
   return (
-    <section className="block wrap rv" id="vault">
+    <section className="mod" id="vault">
       <div className="sh">
         <span className="idx">05</span>
         <h2>{v.title}</h2>

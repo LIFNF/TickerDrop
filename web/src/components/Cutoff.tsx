@@ -217,7 +217,7 @@ export function Cutoff({ tickers }: { tickers: Ticker[] }) {
   let acc = 0;
 
   return (
-    <section className="block wrap rv" id="cutoff">
+    <section className="mod" id="cutoff">
       <div className="sh">
         <span className="idx">02</span>
         <h2>{c.title}</h2>

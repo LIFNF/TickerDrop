@@ -46,7 +46,7 @@ export function Mint({ tickers, state }: { tickers: Ticker[]; state: State }) {
   const pct = (state.minted / SUPPLY) * 100;
 
   return (
-    <section className="block wrap rv" id="mint">
+    <section className="mod" id="mint">
       <div className="sh">
         <span className="idx">03</span>
         <h2>{m.title}</h2>
