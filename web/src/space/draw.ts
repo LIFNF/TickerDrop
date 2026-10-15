@@ -1,6 +1,7 @@
 import type { Ticker } from "../lib/data";
 import { gainPct, type Pick } from "../lib/session";
 import type { Camera } from "./camera";
+import { drawCity, type City } from "./city";
 import { at, bezier, INNER, LINKS, mid, node, NODES, OUTER, type NodeId, type Star } from "./layout";
 
 export type Focus = { kind: "node"; id: NodeId } | { kind: "tk"; id: number } | null;
@@ -49,7 +50,7 @@ export function bucketOf(g: number | null | undefined, top: boolean) {
   return g > 0 ? 1 + l : 7 + l;
 }
 
-type Hl = { hover?: number; focus: Focus; t: number };
+type Hl = { hover?: number; focus: Focus; t: number; city?: City };
 
 export function draw(ctx: CanvasRenderingContext2D, w: number, h: number, cam: Camera, p: Paint, hl: Hl) {
   const { k, x: ox, y: oy } = cam;
@@ -59,6 +60,7 @@ export function draw(ctx: CanvasRenderingContext2D, w: number, h: number, cam: C
 
   ctx.fillStyle = "#05060a";
   ctx.fillRect(0, 0, w, h);
+  if (hl.city) drawCity(ctx, hl.city, cam, hl.t);
 
   grid(ctx, w, h, cam);
 
@@ -73,6 +75,22 @@ export function draw(ctx: CanvasRenderingContext2D, w: number, h: number, cam: C
   g.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = g;
   ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+
+  // card glow: blue under TICKR, red under the book
+  for (const [id, c] of [
+    ["tickr", "0,170,255"],
+    ["nft", "255,30,50"],
+  ] as const) {
+    const b = node(id);
+    const m = mid(b);
+    const gr = b.w * 0.75 * k * (1 + Math.sin(t * 1.6 + (id === "nft" ? 2 : 0)) * 0.04);
+    g = ctx.createRadialGradient(sx(m.x), sy(m.y), 0, sx(m.x), sy(m.y), gr);
+    g.addColorStop(0, `rgba(${c},.34)`);
+    g.addColorStop(0.45, `rgba(${c},.12)`);
+    g.addColorStop(1, `rgba(${c},0)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(sx(m.x) - gr, sy(m.y) - gr, gr * 2, gr * 2);
+  }
 
   // orbit rails
   ctx.lineWidth = 1;
@@ -161,6 +179,8 @@ export function draw(ctx: CanvasRenderingContext2D, w: number, h: number, cam: C
   for (const l of LINKS) {
     if (!l.label) continue;
     const q = bezier(mid(node(l.from)), mid(node(l.to)), l.bend);
+    // short hops get crowded by the pins
+    if (Math.hypot(q.b.x - q.a.x, q.b.y - q.a.y) * k < 150) continue;
     const m = at(q, 0.5);
     tag(ctx, l.label, sx(m.x), sy(m.y), l.color);
   }

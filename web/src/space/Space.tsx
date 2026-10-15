@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { gainPct } from "../lib/session";
 import type { Camera } from "./camera";
+import { buildCity, type City } from "./city";
 import { draw, type Focus, type Paint } from "./draw";
 import { index, type NodeId } from "./layout";
 
@@ -36,6 +37,8 @@ export function Space({ cam, paint, focus, onTap, onMove, children }: Props) {
     let raf = 0;
     let moved = 0;
     let still = 0;
+    let city: City | undefined;
+    let rebake = 0;
 
     const size = () => {
       dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -43,6 +46,8 @@ export function Space({ cam, paint, focus, onTap, onMove, children }: Props) {
       h = el.clientHeight;
       cv.width = Math.round(w * dpr);
       cv.height = Math.round(h * dpr);
+      clearTimeout(rebake);
+      rebake = window.setTimeout(() => (city = buildCity(w, h)), city ? 200 : 0);
     };
     const ro = new ResizeObserver(size);
     ro.observe(el);
@@ -69,13 +74,14 @@ export function Space({ cam, paint, focus, onTap, onMove, children }: Props) {
       last = t;
       const n = now.current;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      draw(ctx, w, h, cam, n.paint, { t, focus: n.focus, hover: n.hover });
+      draw(ctx, w, h, cam, n.paint, { t, focus: n.focus, hover: n.hover, city });
     };
     raf = requestAnimationFrame(frame);
 
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(still);
+      clearTimeout(rebake);
       ro.disconnect();
       off();
     };

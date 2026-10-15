@@ -12,11 +12,12 @@ import { Camera, type Rect } from "./space/camera";
 import { bucketOf, type Focus, type Paint } from "./space/draw";
 import { Hint, Intro, MiniMap, NAV, Top, Zoom } from "./space/Hud";
 import { Inspector } from "./space/Inspector";
-import { node, OUTER, sky, WORLD } from "./space/layout";
+import { INNER, node, sky, WORLD } from "./space/layout";
 import { Nodes } from "./space/Nodes";
 import { Space } from "./space/Space";
 
 const phone = () => window.innerWidth < 760;
+const RIG = 1440;
 
 // what the drawer leaves of the screen
 function viewOf(focus: Focus): Rect {
@@ -32,13 +33,14 @@ function viewOf(focus: Focus): Rect {
 function homeView(cam: Camera, ms?: number) {
   const w = window.innerWidth;
   const h = window.innerHeight;
-  const R = OUTER + 140;
+  // the rig is ~1500 tall; leave the inner ring of stars around it
+  const rig = RIG + 60;
   if (phone()) {
-    const k = Math.min(w / (2 * R), 0.2);
+    const k = Math.min((h * 0.5 - 100) / rig, w / (2 * INNER + 180));
     cam.fly(0, 0, k, w / 2, 100 + (h * 0.5 - 100) / 2 + 20, ms);
   } else {
     const side = Math.min(620, w * 0.44);
-    const k = Math.min((h - 110) / (2 * R), (w - side - 40) / (2 * R));
+    const k = Math.min(((h - 64) * 0.82) / rig, (w - side - 40) / (2 * INNER - 120));
     cam.fly(0, 0, k, side + (w - side) / 2, 64 + (h - 64) / 2, ms);
   }
 }

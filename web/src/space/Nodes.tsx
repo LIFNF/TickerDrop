@@ -7,6 +7,7 @@ import { eth, tkn } from "../lib/format";
 import { gainPct, type Board } from "../lib/session";
 import { useWallet } from "../lib/wallet";
 import type { Focus } from "./draw";
+import { Gpu } from "./Gpu";
 import { NODES, type NodeId } from "./layout";
 
 const sp = t.space;
@@ -30,20 +31,6 @@ function Dial({ size = 120 }: { size?: number }) {
       <line y2="-30" stroke="#ffd400" strokeWidth="2.5" transform="rotate(180)" />
       <line y2="-20" stroke="#fff" strokeWidth="3" transform="rotate(285)" />
       <circle r="3" fill="#ffd400" />
-    </svg>
-  );
-}
-
-function Ring({ part }: { part: number }) {
-  const r = 34;
-  const L = 2 * Math.PI * r;
-  return (
-    <svg viewBox="-45 -45 90 90" width="96" height="96">
-      <circle r={r} fill="none" stroke="rgba(0,240,255,.8)" strokeWidth="10" />
-      <circle r={r} fill="none" stroke="#ffd400" strokeWidth="10" strokeDasharray={`${part * L} ${L}`} transform="rotate(-90)" />
-      <text textAnchor="middle" y="5" fill="#e8e9f0" fontSize="15" fontWeight="700" fontFamily="JetBrains Mono">
-        1B
-      </text>
     </svg>
   );
 }
@@ -78,38 +65,26 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
       </>
     ),
     tickr: (
-      <div className="split">
-        <Ring part={drop} />
-        <div>
-          <b className="big c">TICKR</b>
-          <small>{sp.tickr.sub}</small>
-          <p className="line">
-            <i className="dot c" />
-            {sp.tickr.fee}
-          </p>
-          <p className="line dim">
+      <>
+        <Gpu tone="blue" name="TICKR" model="TD-4663 · 1B SUPPLY" />
+        <div className="rigcap">
+          <b className="big">TICKR</b>
+          <span>{sp.tickr.fee}</span>
+          <span className="dim">
             {(drop * 100).toFixed(2)}% {sp.tickr.drop} · {((1 - drop) * 100).toFixed(2)}% {sp.tickr.lp}
-          </p>
+          </span>
         </div>
-      </div>
+      </>
     ),
     nft: (
       <>
-        <b className="big m">NFT BOOK</b>
-        <small>{sp.nft.sub}</small>
-        <p className="line">
-          <i className="dot m" />
-          {sp.nft.fee}
-        </p>
-        <div className="pair">
-          <div>
-            <b>{state.book.length}</b>
-            <span>{sp.nft.asks}</span>
-          </div>
-          <div>
-            <b>{floor === undefined ? "—" : eth(floor, 5)}</b>
-            <span>{sp.nft.floor} ETH</span>
-          </div>
+        <Gpu tone="red" name="NFT BOOK" model={`${SUPPLY} CARDS`} />
+        <div className="rigcap">
+          <b className="big">NFT BOOK</b>
+          <span>{sp.nft.fee}</span>
+          <span className="dim">
+            {state.book.length} {sp.nft.asks} · {sp.nft.floor} {floor === undefined ? "—" : `${eth(floor, 5)} ETH`}
+          </span>
         </div>
       </>
     ),

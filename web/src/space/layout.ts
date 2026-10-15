@@ -8,17 +8,18 @@ export type ModId = "engine" | "cutoff" | "mint" | "book" | "vault";
 export type Box = { id: NodeId; x: number; y: number; w: number; h: number; mod: ModId };
 
 // world units are px at zoom 1
-export const INNER = 360;
-export const OUTER = 1350;
+export const INNER = 860;
+export const OUTER = 1750;
 
+// the rig sits in the hollow middle: blue card, pool die, red card
 export const NODES: Box[] = [
   { id: "core", x: -170, y: -170, w: 340, h: 340, mod: "engine" },
-  { id: "tickr", x: -2330, y: -700, w: 400, h: 250, mod: "engine" },
-  { id: "nft", x: -2330, y: 200, w: 400, h: 250, mod: "book" },
-  { id: "mint", x: -330, y: -2160, w: 660, h: 270, mod: "mint" },
-  { id: "clock", x: 1350, y: -1640, w: 360, h: 290, mod: "engine" },
-  { id: "board", x: 1880, y: -560, w: 460, h: 470, mod: "cutoff" },
-  { id: "holder", x: 1900, y: 560, w: 420, h: 250, mod: "vault" },
+  { id: "tickr", x: -350, y: -740, w: 700, h: 400, mod: "engine" },
+  { id: "nft", x: -350, y: 300, w: 700, h: 400, mod: "book" },
+  { id: "mint", x: -330, y: -2330, w: 660, h: 270, mod: "mint" },
+  { id: "clock", x: 1500, y: -1980, w: 360, h: 290, mod: "engine" },
+  { id: "board", x: 2080, y: -560, w: 460, h: 470, mod: "cutoff" },
+  { id: "holder", x: 2100, y: 680, w: 420, h: 250, mod: "vault" },
 ];
 
 export const node = (id: NodeId) => NODES.find((n) => n.id === id)!;
@@ -27,8 +28,8 @@ export const mid = (b: Box) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
 export type Link = { from: NodeId; to: NodeId; color: string; bend: number; flow: number; dash?: boolean; label?: string };
 
 export const LINKS: Link[] = [
-  { from: "tickr", to: "core", color: "#00f0ff", bend: -0.18, flow: 6, label: "3% · TICKR" },
-  { from: "nft", to: "core", color: "#ff2bd6", bend: 0.18, flow: 6, label: "3% · ETH" },
+  { from: "tickr", to: "core", color: "#00e1ff", bend: 0, flow: 4, label: "3% · TICKR" },
+  { from: "nft", to: "core", color: "#ff2a3c", bend: 0, flow: 4, label: "3% · ETH" },
   { from: "core", to: "board", color: "#ffd400", bend: -0.08, flow: 5 },
   { from: "board", to: "holder", color: "#ffd400", bend: 0.25, flow: 4 },
   { from: "clock", to: "board", color: "#ffd400", bend: 0.2, flow: 0, dash: true, label: "09:30 NY" },
@@ -91,7 +92,7 @@ export function index(stars: Star[], cell = 80) {
   };
 }
 
-export const WORLD = { x: -2450, y: -2300, w: 4900, h: 3900 };
+export const WORLD = { x: -1950, y: -2420, w: 4560, h: 4320 };
 
 export function bezier(a: { x: number; y: number }, b: { x: number; y: number }, bend: number) {
   const mx = (a.x + b.x) / 2;
