@@ -1,3 +1,4 @@
+import { CompanyArt } from "../components/CompanyCard";
 import { useMemo, type ReactNode } from "react";
 import { addr, dropAbi, live, PRICE, TOP, TOP_PRICE } from "../chain/config";
 import { Contracts } from "../components/Chrome";
@@ -60,6 +61,7 @@ function TickerCard({ id, tickers, state, sessions, board, onFocus }: CardProps)
 
   return (
     <div className="tkc">
+      <CompanyArt ticker={tk} />
       <div className="tk-head">
         <span className="mono dim">#{id}</span>
         <h2 className={id <= TOP ? "y" : ""}>{tk.s}</h2>

@@ -3,6 +3,7 @@ import { addr, dropAbi, live, PRICE, SUPPLY, TOP, TOP_PRICE } from "../chain/con
 import type { State, Ticker } from "../lib/data";
 import { compact, eth } from "../lib/format";
 import { t } from "../lib/copy";
+import { CompanyFace } from "./CompanyCard";
 import { useWallet } from "../lib/wallet";
 
 const MAX = 100;
@@ -93,15 +94,14 @@ export function Mint({ tickers, state }: { tickers: Ticker[]; state: State }) {
           </div>
         </div>
 
-        <div className="grid">
+        <div className="asset-catalog"><span>{shown.length.toLocaleString()} ASSETS / NASDAQ COLLECTION</span><span>01 / ORIGINAL SCHEMATICS</span></div>
+        <div className="grid asset-grid">
           {shown.map((tk) => {
             const taken = state.taken.has(tk.id);
-            const cls = ["cell", tk.id <= TOP && "top", taken && "taken", mine.has(tk.id) && "own", sel.includes(tk.id) && "sel"].filter(Boolean).join(" ");
+            const cls = ["cell", tk.id <= TOP && "premier", taken && "taken", mine.has(tk.id) && "own", sel.includes(tk.id) && "sel"].filter(Boolean).join(" ");
             return (
-              <button key={tk.id} className={cls} onClick={() => toggle(tk.id)} title={`${tk.n} · $${compact(tk.cap)}`}>
-                <span className="r">#{tk.id}</span>
-                <span className="s">{tk.s}</span>
-                <span className="n">{tk.n}</span>
+              <button key={tk.id} className={cls} onClick={() => toggle(tk.id)} aria-pressed={sel.includes(tk.id)} aria-disabled={taken} title={`${tk.n} · $${compact(tk.cap)}`}>
+                <CompanyFace ticker={tk} status={mine.has(tk.id) ? "OWNED" : taken ? "MINTED" : sel.includes(tk.id) ? "SELECTED ✓" : "SELECT +"} />
               </button>
             );
           })}
