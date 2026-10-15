@@ -46,7 +46,6 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
   const body: Record<NodeId, React.ReactNode> = {
     core: (
       <>
-        <div className="die" />
         <b className="big y">GAINPOOL</b>
         <small>{sp.core.sub}</small>
         <div className="pot">
@@ -66,7 +65,7 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
     ),
     tickr: (
       <>
-        <Gpu tone="blue" name="TICKR" model="TD-4663 · 1B SUPPLY" />
+        <Gpu tone="blue" />
         <div className="rigcap">
           <b className="big">TICKR</b>
           <span>{sp.tickr.fee}</span>
@@ -78,7 +77,7 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
     ),
     nft: (
       <>
-        <Gpu tone="red" name="NFT BOOK" model={`${SUPPLY} CARDS`} />
+        <Gpu tone="red" />
         <div className="rigcap">
           <b className="big">NFT BOOK</b>
           <span>{sp.nft.fee}</span>

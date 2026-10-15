@@ -1,7 +1,7 @@
 import type { Ticker } from "../lib/data";
 import { gainPct, type Pick } from "../lib/session";
 import type { Camera } from "./camera";
-import { drawCity, type City } from "./city";
+import { drawCity } from "./city";
 import { at, bezier, INNER, LINKS, mid, node, NODES, OUTER, type NodeId, type Star } from "./layout";
 
 export type Focus = { kind: "node"; id: NodeId } | { kind: "tk"; id: number } | null;
@@ -50,7 +50,7 @@ export function bucketOf(g: number | null | undefined, top: boolean) {
   return g > 0 ? 1 + l : 7 + l;
 }
 
-type Hl = { hover?: number; focus: Focus; t: number; city?: City };
+type Hl = { hover?: number; focus: Focus; t: number };
 
 export function draw(ctx: CanvasRenderingContext2D, w: number, h: number, cam: Camera, p: Paint, hl: Hl) {
   const { k, x: ox, y: oy } = cam;
@@ -60,7 +60,7 @@ export function draw(ctx: CanvasRenderingContext2D, w: number, h: number, cam: C
 
   ctx.fillStyle = "#05060a";
   ctx.fillRect(0, 0, w, h);
-  if (hl.city) drawCity(ctx, hl.city, cam, hl.t);
+  drawCity(ctx, w, h, cam);
 
   grid(ctx, w, h, cam);
 
