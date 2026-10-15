@@ -68,11 +68,9 @@ export function CompanyArt({ ticker }: { ticker: Ticker }) {
 export function CompanyFace({ ticker, status }: { ticker: Ticker; status: string }) {
   const [accent] = identity(ticker);
   return <span className="company-face" style={{ "--art": accent } as CSSProperties}>
-    <span className="asset-top"><span>TD / EQUITY ARCHIVE</span><span>#{String(ticker.id).padStart(4, "0")}</span></span>
-    <CompanyArt ticker={ticker} />
-    <span className="asset-identity"><strong>{ticker.s}</strong><span className="asset-edition">1 / 1</span></span>
-    <span className="asset-name">{ticker.n}</span>
-    <span className="asset-metrics"><span><small>MARKET CAP · DATASET</small><b>${compact(ticker.cap)}</b></span><span><small>CAP RANK</small><b>#{ticker.id.toLocaleString()}</b></span></span>
-    <span className="asset-bottom"><span>{ticker.id <= 100 ? "TOP 100" : "NASDAQ"} <i>·</i> {ticker.id <= 100 ? "0.005" : "0.001"} ETH</span><span>{status}</span></span>
+    <span className="compact-head"><span className="company-mark" aria-hidden="true">{ticker.s.slice(0, 1)}</span><strong>{ticker.s}</strong><span className="compact-rank">#{ticker.id}</span></span>
+    <span className="compact-name">{ticker.n}</span>
+    <span className="compact-meta"><span title="Market cap from the collection dataset">${compact(ticker.cap)}</span><span>{ticker.id <= 100 ? "0.005" : "0.001"} ETH</span></span>
+    <span className="compact-state">{status === "SELECT +" ? (ticker.id <= 100 ? "TOP 100" : "NASDAQ") : status}</span>
   </span>;
 }
