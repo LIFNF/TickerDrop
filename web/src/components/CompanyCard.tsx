@@ -65,12 +65,35 @@ export function CompanyArt({ ticker }: { ticker: Ticker }) {
   </span>;
 }
 
+// Small original pixel emblems; schematic decoration, not price charts or official logos.
+function CardEmblem({ symbol, mode }: { symbol: string; mode: number }) {
+  const paths: Record<string, string> = {
+    AAPL: "M17 7V3h4v4h-4M10 9h5v2h4V9h5v3h3v5h-3v5h3v3h-3v4h-6v-2h-3v2H9v-4H6V14h2v-3h2Z",
+    MSFT: "M4 4h10v10H4ZM18 4h10v10H18ZM4 18h10v10H4ZM18 18h10v10H18Z",
+    META: "M3 21V11h3V8h5v3h3v4h4v-4h3V8h5v3h3v10h-3v3h-5v-3h-3v-4h-4v4h-3v3H6v-3Zm4-9v8h4v-5H9v-3Zm14 3v5h4v-8h-2v3Z",
+    TSLA: "M9 8h14v3h3v7h3v8h-5v-3H8v3H3v-8h3v-7h3Zm2 3v5h10v-5ZM6 19v2h4v-2Zm16 0v2h4v-2Z",
+    SPCX: "M14 2h4v4h4v12h-3v5h-6v-5h-3V6h4ZM7 15h3v9H4v-5h3Zm15 0h3v4h3v5h-6Zm-8 10h4v5h-4ZM14 9v5h4V9Z",
+    AMZN: "M5 8h22v17H5Zm2 2v13h18V10ZM14 8h4v8h-4ZM8 27h16v2H8Z",
+    NFLX: "M8 4h5l6 14V4h5v24h-5l-6-14v14H8Z",
+    GOOG: "M10 4h14v4H10ZM6 8h4v16H6Zm4 16h14v4H10Zm12-8h6v8h-4v-4h-7v-4Z",
+    GOOGL: "M10 4h14v4H10ZM6 8h4v16H6Zm4 16h14v4H10Zm12-8h6v8h-4v-4h-7v-4Z",
+  };
+  const defaults = [
+    "M8 8h16v16H8ZM11 11v10h10V11ZM3 10h4v3H3Zm0 8h4v3H3Zm22-8h4v3h-4Zm0 8h4v3h-4ZM10 3h3v4h-3Zm8 0h3v4h-3Zm-8 22h3v4h-3Zm8 0h3v4h-3Z",
+    "M14 2h4v6h-4ZM2 14h6v4H2Zm22 0h6v4h-6ZM14 24h4v6h-4ZM10 10h12v12H10Zm3 3v6h6v-6Z",
+    "M3 3h7v7H3Zm19 0h7v7h-7ZM3 22h7v7H3Zm19 0h7v7h-7ZM13 13h6v6h-6ZM9 7h4v4h3v3h-3v-3H9Zm10 0h4v4h-3v3h-3v-3h2ZM9 21h4v-3h3v3h-3v4H9Zm10-3h3v3h3v4h-4v-4h-2Z",
+    "M4 16h6v12H4ZM13 10h6v18h-6ZM22 4h6v24h-6ZM4 30h24v2H4Z",
+  ];
+  return <svg className="card-emblem" viewBox="0 0 32 32" shapeRendering="crispEdges" aria-hidden="true"><path d={paths[symbol] ?? defaults[mode]} fill="currentColor" fillRule="evenodd" /></svg>;
+}
 export function CompanyFace({ ticker, status }: { ticker: Ticker; status: string }) {
-  const [accent] = identity(ticker);
+  const [accent, concept, mode] = identity(ticker);
   return <span className="company-face" style={{ "--art": accent } as CSSProperties}>
+    <span className="card-circuit" aria-hidden="true" />
+    <CardEmblem symbol={ticker.s} mode={mode} />
     <span className="compact-head"><span className="company-mark" aria-hidden="true">{ticker.s.slice(0, 1)}</span><strong>{ticker.s}</strong><span className="compact-rank">#{ticker.id}</span></span>
     <span className="compact-name">{ticker.n}</span>
     <span className="compact-meta"><span title="Market cap from the collection dataset">${compact(ticker.cap)}</span><span>{ticker.id <= 100 ? "0.005" : "0.001"} ETH</span></span>
-    <span className="compact-state">{status === "SELECT +" ? (ticker.id <= 100 ? "TOP 100" : "NASDAQ") : status}</span>
+    <span className="compact-footer"><span className="compact-state">{status === "SELECT +" ? (ticker.id <= 100 ? "TOP 100" : "NASDAQ") : status}</span><span className="card-concept" title={concept}>{concept.split(" / ")[0]}</span><span className="card-edition">1/1</span></span>
   </span>;
 }

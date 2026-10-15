@@ -2450,3 +2450,21 @@ td.r {
 .asset-catalog { margin:14px 0 9px; }
 .asset-catalog > :last-child { display:none; }
 @media (max-width:480px) { .grid.asset-grid { grid-template-columns:repeat(2,minmax(0,1fr)); max-height:480px; gap:6px; } }
+/* Keep the 96px card; add a restrained, company-specific pixel identity. */
+.asset-grid > .cell { isolation:isolate; background:#0a1018; }
+.company-face { position:relative; isolation:isolate; height:100%; }
+.company-face::before { content:""; position:absolute; z-index:-2; inset:-9px -11px; background:linear-gradient(115deg,color-mix(in srgb,var(--art) 11%,#0b111a),#0b111a 62%,color-mix(in srgb,var(--art) 9%,#0b111a)); pointer-events:none; }
+.card-emblem { position:absolute; z-index:-1; right:3px; top:1px; width:48px; height:48px; color:var(--art); opacity:.19; pointer-events:none; }
+.card-circuit { position:absolute; z-index:-1; inset:-9px -11px; pointer-events:none; opacity:.23; background:linear-gradient(90deg,transparent 78%,color-mix(in srgb,var(--art) 40%,transparent) 78% 79%,transparent 79%),repeating-linear-gradient(0deg,transparent 0 15px,#93a9be0a 15px 16px); }
+.card-circuit::before { content:""; position:absolute; right:6px; top:5px; width:3px; height:3px; background:var(--art); box-shadow:-5px 0 var(--art),-10px 0 var(--art),0 5px var(--art); }
+.card-circuit::after { content:""; position:absolute; bottom:4px; left:11px; width:34px; height:2px; background:repeating-linear-gradient(90deg,var(--art) 0 2px,transparent 2px 4px); opacity:.6; }
+.compact-head,.compact-name,.compact-meta,.compact-footer { position:relative; z-index:1; }
+.compact-head strong { text-shadow:0 1px 4px #070b13; }
+.compact-rank { background:#0b111ab3; padding:2px; }
+.compact-name { text-shadow:0 1px 3px #070b13; }
+.compact-footer { display:flex; align-items:center; gap:5px; margin-top:5px; min-width:0; }
+.compact-footer .compact-state { margin:0; white-space:nowrap; }
+.card-concept { margin-left:auto; max-width:56%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:6px/1 var(--mono); color:var(--art); opacity:.65; letter-spacing:.025em; }
+.card-edition { color:#8b9aaf; font:6px/1 var(--mono); white-space:nowrap; }
+.asset-grid > .cell:hover .card-emblem { opacity:.32; }
+@media (max-width:480px) { .card-concept { display:none; } .card-edition { margin-left:auto; } }
