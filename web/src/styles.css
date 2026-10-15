@@ -452,43 +452,53 @@ input {
 }
 
 .gpu {
-  position: relative;
-}
-
-.gpu img {
-  position: absolute;
-  max-width: none;
-  user-select: none;
-  pointer-events: none;
-}
-
-.gpu > img {
-  inset: 0;
+  display: block;
   width: 100%;
-  height: 100%;
-  filter: drop-shadow(0 22px 34px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 30px rgba(var(--glow), 0.3));
-  transition: filter 0.25s;
-}
-
-.n-tickr:hover .gpu > img,
-.n-nft:hover .gpu > img,
-.n-tickr.on .gpu > img,
-.n-nft.on .gpu > img {
-  filter: drop-shadow(0 22px 34px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 48px rgba(var(--glow), 0.55));
-}
-
-/* a disc cut from the same photo, turned in place */
-.gpu .rotor {
-  position: absolute;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  overflow: hidden;
-  animation: spin 2s linear infinite;
-  will-change: transform;
-}
-
-.gpu .rotor img {
   height: auto;
+  filter: drop-shadow(0 16px 0 rgba(0, 0, 0, 0.55));
+}
+
+/* four hand-stepped blade frames, one visible at a time */
+.gpu .f {
+  opacity: 0;
+  animation: frame 0.36s steps(1, end) infinite;
+}
+
+.gpu .f1 {
+  animation-delay: -0.27s;
+}
+
+.gpu .f2 {
+  animation-delay: -0.18s;
+}
+
+.gpu .f3 {
+  animation-delay: -0.09s;
+}
+
+.n-nft .gpu .f {
+  animation-duration: 0.44s;
+}
+
+.n-nft .gpu .f1 {
+  animation-delay: -0.33s;
+}
+
+.n-nft .gpu .f2 {
+  animation-delay: -0.22s;
+}
+
+.n-nft .gpu .f3 {
+  animation-delay: -0.11s;
+}
+
+@keyframes frame {
+  0% {
+    opacity: 1;
+  }
+  25% {
+    opacity: 0;
+  }
 }
 
 .rigcap {
@@ -513,8 +523,11 @@ input {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gpu .rotor {
+  .gpu .f {
     animation: none;
+  }
+  .gpu .f0 {
+    opacity: 1;
   }
 }
 
