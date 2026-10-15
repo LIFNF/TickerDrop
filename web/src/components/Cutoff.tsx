@@ -74,6 +74,107 @@ function solve(list: Mv[]) {
 
 const f = (n: number, d = 2) => n.toFixed(d).replace(/\.?0+$/, "") + "%";
 
+type Bar = Mv & { w: number; cum: number; share: number; neg: boolean };
+
+// narrow screens: same data, one row per listing
+function Rows({ bars, total }: { bars: Bar[]; total: number }) {
+  const c = t.cutoff;
+  const X = 56;
+  const L = 170;
+  const H = 28;
+  const maxPos = Math.max(1, ...bars.filter((b) => !b.neg).map((b) => b.g));
+  const maxNeg = Math.max(0.5, ...bars.filter((b) => b.neg).map((b) => -b.g));
+  const tankY = 30 + bars.length * H + 26;
+  let acc = 0;
+  return (
+    <svg className="tall" viewBox={`0 0 360 ${tankY + (total > 0 && total < 100 ? 72 : 52)}`}>
+      <text y="12" fill="#8a8ea3" fontSize="10" letterSpacing="2">
+        {c.gain.toUpperCase()}
+      </text>
+      <text x="360" y="12" fill="#8a8ea3" fontSize="10" textAnchor="end">
+        Σ
+      </text>
+      {bars.map((b, i) => {
+        const y = 26 + i * H;
+        const color = PAL[i % PAL.length];
+        if (b.neg) {
+          const len = Math.max(2, (Math.min(-b.g, maxNeg) / maxNeg) * 40);
+          return (
+            <g key={b.s + i} opacity=".55">
+              <text y={y + 13} fill="#8a8ea3" fontSize="12" fontWeight="700">
+                {b.s}
+              </text>
+              <rect x={X} y={y + 2} width={len} height="14" fill="none" stroke="#00f0ff" strokeOpacity=".5" />
+              <text x={X + len + 6} y={y + 13} fill="#8a8ea3" fontSize="11">
+                {b.g === 0 ? "0%" : f(b.g)}
+              </text>
+              <text x="360" y={y + 13} fill="#4a4e63" fontSize="10" textAnchor="end">
+                {c.out}
+              </text>
+            </g>
+          );
+        }
+        const full = (b.g / maxPos) * L;
+        const on = b.w > 0;
+        const clipped = on && b.w < b.g;
+        return (
+          <g key={b.s + i}>
+            <text y={y + 13} fill={on ? "#e8e9f0" : "#4a4e63"} fontSize="12" fontWeight="700">
+              {b.s}
+            </text>
+            <rect x={X} y={y + 2} width={full} height="14" fill={on ? "url(#cutHatch)" : "rgba(255,255,255,.07)"} />
+            {on && <rect className="gx" x={X} y={y + 2} width={(b.w / maxPos) * L} height="14" fill={color} style={{ animationDelay: `${i * 60}ms` }} />}
+            <text x={X + full + 6} y={y + 13} fill={on ? color : "#4a4e63"} fontSize="11" fontWeight="700">
+              +{f(b.g)}
+            </text>
+            <text x="360" y={y + 13} fill={clipped ? "#ff2bd6" : on ? "#8a8ea3" : "#4a4e63"} fontSize="10" textAnchor="end">
+              {on ? `Σ ${f(b.cum, 1)}` : c.out}
+            </text>
+          </g>
+        );
+      })}
+
+      <text y={tankY - 8} fill="#8a8ea3" fontSize="10" letterSpacing="2">
+        {c.share.toUpperCase()} · 100%
+      </text>
+      <rect y={tankY} width="360" height="40" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.2)" />
+      {total === 0 && (
+        <text x="180" y={tankY + 25} textAnchor="middle" fill="#ff2bd6" fontSize="12" letterSpacing="3">
+          ROLLOVER →
+        </text>
+      )}
+      {bars
+        .filter((b) => !b.neg && b.share > 0)
+        .map((b) => {
+          const i = bars.indexOf(b);
+          const w = (360 * b.share) / 100;
+          const x = acc;
+          acc += w;
+          return (
+            <g key={"t" + b.s}>
+              <rect className="gx" x={x} y={tankY} width={w} height="40" fill={PAL[i % PAL.length]} opacity=".9" />
+              {w > 44 && (
+                <>
+                  <text x={x + 6} y={tankY + 17} fill="#05060a" fontSize="11" fontWeight="700">
+                    {b.s}
+                  </text>
+                  <text x={x + 6} y={tankY + 32} fill="#05060a" fontSize="10">
+                    {f(b.share, 1)}
+                  </text>
+                </>
+              )}
+            </g>
+          );
+        })}
+      {total > 0 && total < 100 && (
+        <text x="360" y={tankY + 60} textAnchor="end" fill="#8a8ea3" fontSize="10">
+          ×{(100 / total).toFixed(2)} pro rata
+        </text>
+      )}
+    </svg>
+  );
+}
+
 export function Cutoff({ tickers }: { tickers: Ticker[] }) {
   const c = t.cutoff;
   const [tab, setTab] = useState(0);
@@ -140,12 +241,14 @@ export function Cutoff({ tickers }: { tickers: Ticker[] }) {
       </div>
 
       <div className="panel chart">
-        <svg viewBox={`0 0 ${W} 420`} key={`${tab}-${seed}`}>
+        <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden>
           <defs>
             <pattern id="cutHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
               <rect width="2" height="6" fill="#ff2bd6" opacity=".75" />
             </pattern>
           </defs>
+        </svg>
+        <svg className="wide" viewBox={`0 0 ${W} 420`} key={`${tab}-${seed}`}>
 
           <text x={X0} y="16" fill="#8a8ea3" fontSize="11" letterSpacing="2">
             {c.gain.toUpperCase()}
@@ -245,6 +348,7 @@ export function Cutoff({ tickers }: { tickers: Ticker[] }) {
             </text>
           )}
         </svg>
+        <Rows bars={bars} total={total} key={`m${tab}-${seed}`} />
         <p className="verdict">{verdict}</p>
       </div>
 

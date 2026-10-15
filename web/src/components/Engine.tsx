@@ -14,16 +14,27 @@ function Packet({ path, color, dur, delay = 0 }: { path: string; color: string; 
   );
 }
 
-function Node({ x, y, w, h, title, sub, color }: { x: number; y: number; w: number; h: number; title: string; sub?: string; color: string }) {
+function Wire({ d, color, dur, delay, op = ".35" }: { d: string; color: string; dur: number; delay?: number; op?: string }) {
+  return (
+    <>
+      <path className="wire" d={d} stroke={color} strokeOpacity={op} />
+      <path className="run" d={d} stroke={color} />
+      <Packet path={d} color={color} dur={dur} delay={delay} />
+    </>
+  );
+}
+
+function Node({ x, y, w, h, title, sub, color, fs = 15 }: { x: number; y: number; w: number; h: number; title: string; sub?: string; color: string; fs?: number }) {
+  const pad = fs > 13 ? 20 : 14;
   return (
     <g>
       <path d={`M${x} ${y}h${w - 12}l12 12v${h - 12}h${-w + 12}l-12 -12z`} fill="#0b0d16" stroke={color} strokeOpacity=".7" />
       <rect x={x} y={y + 14} width="3" height={h - 28} fill={color} />
-      <text x={x + 20} y={y + (sub ? h / 2 - 2 : h / 2 + 5)} fill="#e8e9f0" fontSize="15" fontWeight="700" letterSpacing="1.5">
+      <text x={x + pad} y={y + (sub ? h / 2 - 2 : h / 2 + 5)} fill="#e8e9f0" fontSize={fs} fontWeight="700" letterSpacing={fs > 13 ? 1.5 : 0.8}>
         {title}
       </text>
       {sub && (
-        <text x={x + 20} y={y + h / 2 + 18} fill={DIM} fontSize="11" letterSpacing="1">
+        <text x={x + pad} y={y + h / 2 + (fs > 13 ? 18 : 15)} fill={DIM} fontSize={fs > 13 ? 11 : 10} letterSpacing="1">
           {sub}
         </text>
       )}
@@ -54,6 +65,31 @@ function Chip() {
       </text>
       <path d="M480 90l14 0l-14 14z" fill={Y} />
     </g>
+  );
+}
+
+function Clock({ label, side }: { label: string; side?: boolean }) {
+  return (
+    <>
+      <circle r="30" fill="#0b0d16" stroke={Y} strokeOpacity=".7" />
+      {Array.from({ length: 12 }, (_, i) => (
+        <line key={i} y1="-26" y2={i % 3 ? "-23" : "-20"} stroke="rgba(255,255,255,.4)" transform={`rotate(${i * 30})`} />
+      ))}
+      <line y2="-18" stroke={Y} strokeWidth="2" transform="rotate(180)" />
+      <line y2="-12" stroke="#fff" strokeWidth="2" transform="rotate(285)" />
+      {side ? (
+        <text x="42" y="5" fill={Y} fontSize="13" letterSpacing="1.5">
+          {label}
+        </text>
+      ) : (
+        <>
+          <line y1="30" y2="82" stroke={Y} strokeDasharray="2 4" />
+          <text y="-40" textAnchor="middle" fill={Y} fontSize="12" letterSpacing="1.5">
+            {label}
+          </text>
+        </>
+      )}
+    </>
   );
 }
 
@@ -114,14 +150,125 @@ function Board({ label, out, clip }: { label: string; out: string; clip: string 
   );
 }
 
+function Holder() {
+  const e = t.engine;
+  return (
+    <g>
+      <path d="M860 392h300v52l-12 12h-288z" fill="#0b0d16" stroke={Y} strokeOpacity=".7" />
+      <text x="878" y="420" fill="#e8e9f0" fontSize="15" fontWeight="700" letterSpacing="1.5">
+        {e.holder.toUpperCase()}
+      </text>
+      <text x="878" y="440" fill={DIM} fontSize="11">
+        CARD + {e.hold}
+      </text>
+      <text x="1142" y="420" fill={M} fontSize="12" textAnchor="end">
+        ETH
+      </text>
+      <text x="1142" y="440" fill={C} fontSize="12" textAnchor="end">
+        TICKR
+      </text>
+    </g>
+  );
+}
+
+function Defs() {
+  return (
+    <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden>
+      <defs>
+        <pattern id="dieGrid" width="11" height="11" patternUnits="userSpaceOnUse">
+          <rect width="9" height="9" fill="rgba(255,212,0,.07)" />
+        </pattern>
+        <radialGradient id="dieGlow">
+          <stop offset="0" stopColor={Y} stopOpacity=".22" />
+          <stop offset="1" stopColor={Y} stopOpacity="0" />
+        </radialGradient>
+        <pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="2" height="5" fill={M} opacity=".7" />
+        </pattern>
+      </defs>
+    </svg>
+  );
+}
+
+function Wide() {
+  const e = t.engine;
+  const pRoll = "M880 350 C 860 420 660 410 620 340";
+  return (
+    <svg className="wide" viewBox="20 30 1160 440">
+      <Node x={40} y={70} w={250} h={90} title={e.tickr} sub="PAIR ⇄ WALLET" color={C} />
+      <Node x={40} y={250} w={250} h={90} title={e.nft} sub="buy(id) · ROYALTY" color={M} />
+      <Wire d="M290 115 H380 C430 115 430 170 480 170" color={C} dur={2.2} />
+      <Packet path="M290 115 H380 C430 115 430 170 480 170" color={C} dur={2.2} delay={1.1} />
+      <Wire d="M290 295 H380 C430 295 430 250 480 250" color={M} dur={2.6} delay={0.4} />
+      <text x="300" y="104" fill={C} fontSize="12">
+        {e.inTkn}
+      </text>
+      <text x="300" y="324" fill={M} fontSize="12">
+        {e.inEth}
+      </text>
+
+      <Chip />
+      <Wire d="M730 210 H860" color={Y} dur={1.6} op=".4" />
+      <g transform="translate(795 128)">
+        <Clock label={e.clock} />
+      </g>
+
+      <Board label={e.board} out={t.cutoff.out} clip={t.cutoff.clip} />
+      <Wire d="M1010 350 V392" color={Y} dur={1.2} delay={0.6} op=".5" />
+      <Holder />
+
+      <path d={pRoll} fill="none" stroke="rgba(255,255,255,.3)" strokeDasharray="3 5" />
+      <path d="M616 352l4-12 7 10" fill="none" stroke="rgba(255,255,255,.45)" />
+      <text x="740" y="412" fill={DIM} fontSize="11" textAnchor="middle" letterSpacing="1">
+        {e.roll}
+      </text>
+    </svg>
+  );
+}
+
+// board and holder are drawn at x 860..1160; shift them under the chip
+const STACK = "translate(-830 300)";
+
+function Tall() {
+  const e = t.engine;
+  return (
+    <svg className="tall" viewBox="0 0 360 772">
+      <Node x={4} y={8} w={164} h={70} title={e.tickr} sub="PAIR ⇄ WALLET" color={C} fs={12} />
+      <Node x={192} y={8} w={164} h={70} title={e.nft} sub="buy(id) · ROYALTY" color={M} fs={12} />
+      <Wire d="M86 78 V100 C86 124 150 112 150 149" color={C} dur={1.8} />
+      <Wire d="M274 78 V100 C274 124 210 112 210 149" color={M} dur={2.1} delay={0.4} />
+      <text x="4" y="118" fill={C} fontSize="11">
+        {e.inTkn}
+      </text>
+      <text x="356" y="118" fill={M} fontSize="11" textAnchor="end">
+        {e.inEth}
+      </text>
+
+      <g transform="translate(180 222) scale(.56) translate(-600 -210)">
+        <Chip />
+      </g>
+      <Wire d="M180 296 V360" color={Y} dur={1.2} op=".4" />
+      <g transform="translate(232 332) scale(.8)">
+        <Clock label={e.clock} side />
+      </g>
+
+      <g transform={STACK}>
+        <Board label={e.board} out={t.cutoff.out} clip={t.cutoff.clip} />
+        <Wire d="M1010 350 V392" color={Y} dur={1.2} delay={0.6} op=".5" />
+        <Holder />
+      </g>
+
+      <path d="M30 420 C 22 380 22 250 100 226" fill="none" stroke="rgba(255,255,255,.3)" strokeDasharray="3 5" />
+      <path d="M92 219l9 7-9 7" fill="none" stroke="rgba(255,255,255,.45)" />
+      <text transform="translate(14 400) rotate(-90)" fill={DIM} fontSize="10" letterSpacing="1">
+        {e.roll}
+      </text>
+    </svg>
+  );
+}
+
 export function Engine() {
   const e = t.engine;
-  const pA = "M290 115 H380 C430 115 430 170 480 170";
-  const pB = "M290 295 H380 C430 295 430 250 480 250";
-  const pOut = "M730 210 H860";
-  const pHold = "M1010 350 V392";
-  const pRoll = "M880 350 C 860 420 660 410 620 340";
-
   return (
     <section className="block wrap rv" id="engine">
       <div className="sh">
@@ -130,83 +277,10 @@ export function Engine() {
         <p>{e.lead}</p>
       </div>
 
-      <div className="panel flow" style={{ padding: "26px 20px 18px" }}>
-        <svg viewBox="20 30 1160 440">
-          <defs>
-            <pattern id="dieGrid" width="11" height="11" patternUnits="userSpaceOnUse">
-              <rect width="9" height="9" fill="rgba(255,212,0,.07)" />
-            </pattern>
-            <radialGradient id="dieGlow">
-              <stop offset="0" stopColor={Y} stopOpacity=".22" />
-              <stop offset="1" stopColor={Y} stopOpacity="0" />
-            </radialGradient>
-            <pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-              <rect width="2" height="5" fill={M} opacity=".7" />
-            </pattern>
-          </defs>
-
-          <Node x={40} y={70} w={250} h={90} title={e.tickr} sub="PAIR ⇄ WALLET" color={C} />
-          <Node x={40} y={250} w={250} h={90} title={e.nft} sub="buy(id) · ROYALTY" color={M} />
-
-          <path className="wire" d={pA} stroke={C} strokeOpacity=".35" />
-          <path className="run" d={pA} stroke={C} />
-          <path className="wire" d={pB} stroke={M} strokeOpacity=".35" />
-          <path className="run" d={pB} stroke={M} />
-          <text x="300" y="104" fill={C} fontSize="12">
-            {e.inTkn}
-          </text>
-          <text x="300" y="324" fill={M} fontSize="12">
-            {e.inEth}
-          </text>
-          <Packet path={pA} color={C} dur={2.2} />
-          <Packet path={pA} color={C} dur={2.2} delay={1.1} />
-          <Packet path={pB} color={M} dur={2.6} delay={0.4} />
-
-          <Chip />
-
-          <path className="wire" d={pOut} stroke={Y} strokeOpacity=".4" />
-          <path className="run" d={pOut} stroke={Y} />
-          <Packet path={pOut} color={Y} dur={1.6} />
-
-          <g transform="translate(795 128)">
-            <circle r="30" fill="#0b0d16" stroke={Y} strokeOpacity=".7" />
-            {Array.from({ length: 12 }, (_, i) => (
-              <line key={i} y1="-26" y2={i % 3 ? "-23" : "-20"} stroke="rgba(255,255,255,.4)" transform={`rotate(${i * 30})`} />
-            ))}
-            <line y2="-18" stroke={Y} strokeWidth="2" transform="rotate(180)" />
-            <line y2="-12" stroke="#fff" strokeWidth="2" transform="rotate(285)" />
-            <line y1="30" y2="82" stroke={Y} strokeDasharray="2 4" />
-            <text y="-40" textAnchor="middle" fill={Y} fontSize="12" letterSpacing="1.5">
-              {e.clock}
-            </text>
-          </g>
-
-          <Board label={e.board} out={t.cutoff.out} clip={t.cutoff.clip} />
-
-          <path className="wire" d={pHold} stroke={Y} strokeOpacity=".5" />
-          <Packet path={pHold} color={Y} dur={1.2} delay={0.6} />
-          <g>
-            <path d="M860 392h300v52l-12 12h-288z" fill="#0b0d16" stroke={Y} strokeOpacity=".7" />
-            <text x="878" y="420" fill="#e8e9f0" fontSize="15" fontWeight="700" letterSpacing="1.5">
-              {e.holder.toUpperCase()}
-            </text>
-            <text x="878" y="440" fill={DIM} fontSize="11">
-              CARD + {e.hold}
-            </text>
-            <text x="1142" y="420" fill={M} fontSize="12" textAnchor="end">
-              ETH
-            </text>
-            <text x="1142" y="440" fill={C} fontSize="12" textAnchor="end">
-              TICKR
-            </text>
-          </g>
-
-          <path d={pRoll} fill="none" stroke="rgba(255,255,255,.3)" strokeDasharray="3 5" />
-          <path d="M616 352l4-12 7 10" fill="none" stroke="rgba(255,255,255,.45)" />
-          <text x="740" y="412" fill={DIM} fontSize="11" textAnchor="middle" letterSpacing="1">
-            {e.roll}
-          </text>
-        </svg>
+      <div className="panel flow">
+        <Defs />
+        <Wide />
+        <Tall />
       </div>
 
       <div className="points">
