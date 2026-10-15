@@ -6,8 +6,8 @@ export const t = {
 
   hero: {
     kicker: "NASDAQ × ROBINHOOD CHAIN",
-    line1: "3,172 Nasdaq listings. 3,172 cards.",
-    line2: "The final close prints the board. The next open pays it.",
+    line1: "Each NFT is one Nasdaq company.",
+    line2: "When yours closes among the day's top gainers, you get paid from a pool fed by 3% of every trade.",
     stats: [
       ["3172", "cards, id = market cap rank"],
       ["3%", "on every Tickr and NFT trade"],
