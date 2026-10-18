@@ -1,7 +1,7 @@
 {
   "chainId": 4663,
   "version": 2,
-  "status": "awaiting-automation",
+  "status": "active",
   "tickr": "0x1b6ae3921161339c351812777a25e4d0e8dd18a2",
   "pool": "0xa3e5703ac6365f4802d39e6bca63ff120c0897e2",
   "drop": "0xe8b4bc50c7b55d3f1a5ac46c8730865ff97d420a",
