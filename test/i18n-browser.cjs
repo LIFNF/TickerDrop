@@ -18,7 +18,9 @@ const connect={en:'Connect your wallet to check eligibility',es:'Conecta tu cart
  if(remote){const proxy=require('node:child_process').execFileSync('powershell.exe',['-NoProfile','-Command',`[System.Net.WebRequest]::DefaultWebProxy.GetProxy([uri]'${remote}').AbsoluteUri`],{encoding:'utf8'}).trim();if(proxy&&!proxy.startsWith(remote))options.proxy={server:proxy};}
  const browser=await chromium.launch(options);
  try{
-  const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'ja-JP'}),page=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'ja-JP'});
+  await context.addInitScript(()=>localStorage.setItem('tickerdrop:language:v1','zh-Hant'));
+  const page=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
   if(!remote)await page.route('**/*',request=>new URL(request.request().url()).hostname==='127.0.0.1'?request.continue():request.abort());
   const base=remote||'http://127.0.0.1:'+server.address().port;
   assert.equal((await page.goto(base+'/mint')).status(),200);await page.waitForSelector('.asset-grid .cell');
@@ -46,7 +48,8 @@ const connect={en:'Connect your wallet to check eligibility',es:'Conecta tu cart
    }
    fs.mkdirSync('release',{recursive:true});await page.screenshot({path:path.resolve(`release/i18n-${id}-mobile.png`)});
    await page.setViewportSize({width:1440,height:1000});
-   await page.reload();await page.waitForSelector('.invite-box');assert.equal(await page.locator('html').getAttribute('lang'),id,'Preference persisted');
+   await page.reload();await page.waitForSelector('.invite-box');assert.equal(await page.locator('html').getAttribute('lang'),'en','Reload starts in English despite saved preferences');
+   await page.locator('.language-switch select').selectOption(id);
    await page.locator('.asset-grid .cell').first().click();await page.evaluate(()=>window.navigationMarker='unchanged');
   }
   await page.goto(base+'/t/NVDA');await page.waitForSelector('.tkc h2');assert.equal(await page.locator('.tkc h2').innerText(),'NVDA');
@@ -57,6 +60,6 @@ const connect={en:'Connect your wallet to check eligibility',es:'Conecta tu cart
   const blocked=await browser.newContext();await blocked.addInitScript(()=>{Storage.prototype.getItem=()=>{throw Error('blocked')};Storage.prototype.setItem=()=>{throw Error('blocked')};});
   const fallback=await blocked.newPage();if(!remote)await fallback.route('**/*',request=>new URL(request.request().url()).hostname==='127.0.0.1'?request.continue():request.abort());
   await fallback.goto(base+'/mint');await fallback.waitForSelector('.invite-box');assert.equal(await fallback.locator('html').getAttribute('lang'),'en');await fallback.locator('.language-switch select').selectOption('es');assert.equal(await fallback.locator('html').getAttribute('lang'),'es');await blocked.close();
-  console.log(JSON.stringify({languages:4,englishDefault:true,orderedMenu:true,pages:5,tickerDetails:true,selectionPreserved:true,noReloadOnSwitch:true,preferenceRestored:true,mobileWidths:[320,390],blockedStorageFallback:true,uncaughtErrors:0,realTransactions:0}));
+  console.log(JSON.stringify({languages:4,englishDefault:true,staleTraditionalPreferenceIgnored:true,reloadStartsEnglish:true,orderedMenu:true,pages:5,tickerDetails:true,selectionPreserved:true,noReloadOnSwitch:true,mobileWidths:[320,390],blockedStorageFallback:true,uncaughtErrors:0,realTransactions:0}));
  }finally{await browser.close();if(!remote)await new Promise(resolve=>server.close(resolve));}
 })().catch(error=>{console.error(error.message);process.exitCode=1;});

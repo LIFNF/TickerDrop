@@ -6,10 +6,9 @@ export const languages=[
  {id:"ja",name:"日本語",short:"日本語",locale:"ja-JP"},
 ] as const;
 export type Language=typeof languages[number]["id"];
-const storageKey="tickerdrop:language:v1";
 export const isLanguage=(value:unknown):value is Language=>languages.some(language=>language.id===value);
-function saved():Language{try{const value=localStorage.getItem(storageKey);return isLanguage(value)?value:"en";}catch{return "en";}}
-let language:Language=saved();
+// Each page load starts in English; manual selection lasts for this page session.
+let language:Language="en";
 const listeners=new Set<()=>void>();
 export const getLanguage=()=>language;
 export const numberLocale=()=>languages.find(item=>item.id===language)!.locale;
@@ -17,7 +16,6 @@ function updateDocument(){if(typeof document!=="undefined")document.documentElem
 updateDocument();
 export function setLanguage(value:Language){
  if(!isLanguage(value))return;
- try{localStorage.setItem(storageKey,value);}catch{/* In-memory preference remains usable. */}
  if(value===language)return;
  language=value;updateDocument();listeners.forEach(listener=>listener());
 }
