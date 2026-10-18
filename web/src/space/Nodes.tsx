@@ -9,6 +9,7 @@ import { useWallet } from "../lib/wallet";
 import type { Focus } from "./draw";
 import { Gpu } from "./Gpu";
 import {useReferenceQuotes} from '../lib/reference';
+import {numberLocale} from '../lib/locale';
 import { Clock, Die, Hardware } from "./sprites";
 import { NODES, type NodeId } from "./layout";
 
@@ -127,7 +128,7 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
       <>
         <div className="row">
           <b className="big">{board.date}</b>
-          <span className="mono dim">{tx("On-chain verified")}</span>
+          <span className="mono dim">{tx("Daily allocation")}</span>
         </div>
         <ol className="picks">
           {board.picks.slice(0, 7).map((p) => (
@@ -143,7 +144,7 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
           {board.picks.length > 7 && <li className="dim more">+{board.picks.length - 7}</li>}
         </ol>
         <div className="sum">
-          {board.allocationOnly ? <span>{tx("Verified allocations")} <b>{board.picks.length}</b></span> : <>
+          {board.allocationOnly ? <span>{tx("Selected NFTs")} <b>{board.picks.length}</b></span> : <>
           <span>
             <b className="y">{board.green}</b> {sp.board.green}
           </span>
@@ -158,18 +159,16 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
       </>
     ) : reference ? (
       <>
-        <div className="row"><b>TradingView</b><span className="mono dim">{tx("Reference quotes")}</span></div>
-        <small>{tx("Captured")} {new Date(reference.capturedAt).toLocaleString()}</small>
+        <div className="row"><b>{tx("Top movers")}</b><span className="quote-status">{tx("Delayed")}</span></div>
         <ol className="reference-prices">
-          {[...reference.rows].sort((a,b)=>b.change-a.change||a.id-b.id).slice(0,5).map(q=><li key={q.id}><b>{q.s}</b><span>${q.price.toLocaleString(undefined,{maximumFractionDigits:4})}</span><span className={q.change>=0?'y':'c'}>{q.change>0?'+':''}{q.change.toFixed(2)}%</span></li>)}
+          {[...reference.rows].sort((a,b)=>b.change-a.change||a.id-b.id).slice(0,5).map(q=><li key={q.id}><b>{q.s}</b><span>${q.price.toLocaleString(numberLocale(),{maximumFractionDigits:4})}</span><span className={q.change>=0?'y':'c'}>{q.change>0?'+':''}{q.change.toLocaleString(numberLocale(),{minimumFractionDigits:2,maximumFractionDigits:2})}%</span></li>)}
         </ol>
-        <small>{tx("Quotes may be delayed. Not settlement results.")}</small>
-        <p className="line dim">{tx("No verified market report. Settlement is pending.")}</p>
+        <div className="quote-source"><span title={new Date(reference.capturedAt).toLocaleString(numberLocale())}>TradingView</span></div>
       </>
     ) : (
       <>
-        <b className="big">—</b>
-        <p className="line dim">{tx("No verified market report. Settlement is pending.")}</p>
+          <b>{tx("Top movers")}</b>
+          <p className="line dim">{tx("Prices unavailable")}</p>
       </>
     ),
     holder: (

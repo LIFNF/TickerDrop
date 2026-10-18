@@ -9,7 +9,7 @@ export class ErrorBoundary extends Component<{children:ReactNode},{failed:boolea
 export function DataHealth(){
   const [states,setStates]=useState(dataStatus);
   useEffect(()=>{const update=()=>setStates(dataStatus());window.addEventListener("tickerdrop:data",update);update();return()=>window.removeEventListener("tickerdrop:data",update);},[]);
-  const failed=states.some(([,s])=>s==="error"), backup=states.some(([,s])=>s==="backup");
-  if(!failed&&!backup)return null;
-  return <div className="data-health" role="status">{tx(failed?"Data unavailable. Retrying; transactions remain paused until on-chain data is available.":"Using backup data. Check the data date.")}</div>;
+  const failed=states.some(([,s])=>s==="error");
+  if(!failed)return null;
+  return <div className="data-health" role="status">{tx("Connection unavailable. Retrying…")}</div>;
 }

@@ -16,21 +16,35 @@ const server=http.createServer((req,res)=>{
   const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   const old=JSON.parse(fs.readFileSync('data/sessions/2026-10-14.json','utf8'));
+  const reference=JSON.parse(fs.readFileSync('web/public/reference-quotes.json','utf8'));let showReference=true;
   // A stale or replaced public file cannot fabricate a signed on-chain allocation.
   await page.route('**/sessions.json',r=>r.fulfill({contentType:'application/json',body:JSON.stringify([old])}));
-  await page.route('https://raw.githubusercontent.com/**',r=>r.fulfill({contentType:'application/json',body:JSON.stringify([old])}));
+  await page.route('**/reference-quotes.json',r=>r.fulfill({contentType:'application/json',body:JSON.stringify(showReference?reference:{})}));
+  await page.route('https://raw.githubusercontent.com/**',r=>r.fulfill({contentType:'application/json',body:JSON.stringify(r.request().url().includes('reference-quotes')?(showReference?reference:{}):[old])}));
   const base=remote||'http://127.0.0.1:'+server.address().port;
   assert.equal((await page.goto(base+'/')).status(),200);
-  for(const [language,text] of [['en','No verified market report. Settlement is pending.'],['es','Sin informe de mercado verificado. Liquidación pendiente.'],['zh-Hant','尚無已驗證行情，等待結算。'],['ja','検証済み市場データがありません。精算待ちです。']]){
+  await page.locator('.reference-prices li').first().waitFor({state:'attached'});
+  for(const [language,title,status]of [['en','Top movers','Delayed'],['es','Mayores variaciones','Con retraso'],['zh-Hant','漲跌排行','延遲'],['ja','騰落率ランキング','遅延']]){
+   await page.locator('.language-switch select').selectOption(language);
+   const board=page.locator('.n-board');const text=await board.innerText();
+   assert.ok(text.includes(title));assert.equal(await board.locator('.quote-status').innerText(),status);
+   assert.equal(await board.locator('.reference-prices li').count(),5);
+   assert.ok(!/Captured|採集時間|采集时间|No verified market|尚無已驗證行情/.test(text));
+   assert.equal(await board.locator('.quote-source').innerText(),'TradingView');
+  }
+  showReference=false;await page.reload();
+  for(const [language,text] of [['en','Prices unavailable'],['es','Cotizaciones no disponibles'],['zh-Hant','暫無報價'],['ja','価格データなし']]){
    await page.locator('.language-switch select').selectOption(language);
    await page.getByText(text,{exact:true}).waitFor({state:'attached',timeout:30000});
    assert.equal(await page.locator('.picks').count(),0);
    assert.ok(!(await page.locator('body').innerText()).includes('2026-10-14'));
   }
   await page.locator('.language-switch select').selectOption('en');
-  await page.goto(base+'/docs');await page.getByText('Trading has not started. No settlement is available yet.',{exact:true}).waitFor({timeout:30000});
+  await page.goto(base+'/docs');await page.getByText('No payouts yet',{exact:true}).waitFor({timeout:30000});
+  assert.equal(await page.locator('.docs-details').evaluate(e=>e.open),false);
+  await page.locator('.docs-details summary').click();assert.equal(await page.locator('.docs-details').evaluate(e=>e.open),true);
   await page.setViewportSize({width:390,height:844});await page.goto(base+'/');
-  await page.getByText('No verified market report. Settlement is pending.',{exact:true}).waitFor({state:'attached'});
-  assert.deepEqual(errors,[]);console.log(JSON.stringify({staleDataRejected:true,languages:4,desktop:true,mobile:true,liveTradingStatus:true,uncaughtErrors:0}));
+  await page.getByText('Prices unavailable',{exact:true}).waitFor({state:'attached'});
+  assert.deepEqual(errors,[]);console.log(JSON.stringify({customerMarketCopy:true,compactDelayedLabel:true,technicalDetailsCollapsed:true,staleDataRejected:true,languages:4,desktop:true,mobile:true,liveTradingStatus:true,uncaughtErrors:0}));
  }finally{await browser.close();if(!remote)await new Promise(r=>server.close(r));}
 })().catch(e=>{console.error(e.message);process.exitCode=1;server.close();});

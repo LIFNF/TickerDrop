@@ -62,11 +62,13 @@ export function Docs({ state, onClose }: { state: State; onClose(): void }) {
           <section className="docs-card">
             <span className="docs-num">04 / {tx("SETTLEMENT")}</span>
             <h2>{tx("Market-data settlement")}</h2>
-            <p>{tx("Automated quote checks, background signatures and on-chain payouts. No daily wallet confirmation is required.")}</p>
-            <p>{tx("Quote checks are project-operated using TradingView and Nasdaq data. Provider outages or inconsistent quotes delay settlement.")}</p>
-            <p>{tx("Market reports require signatures from at least two of three configured signers. Anyone can relay a valid report and advance settlement; the contracts cannot fetch external stock prices by themselves.")}</p>
-            <p>{state.liveAt===0?tx("Trading has not started. No settlement is available yet."):tx("Settlement requires signed market data and a relayer transaction.")}</p>
+            <p>{tx("Daily payouts follow the closing-price ranking and settle after the next market open.")}</p>
             <p>{tx("Eligibility uses the recorded snapshot: the matching NFT and at least 1 TICKR must be held in the same wallet. Unallocated fees carry forward.")}</p>
+            {state.roundCount===0&&<p className="dim">{tx("No payouts yet")}</p>}
+            <details className="docs-details"><summary>{tx("Data & settlement")}</summary>
+              <p>{tx("Quote checks are project-operated using TradingView and Nasdaq data. Provider outages or inconsistent quotes delay settlement.")}</p>
+              <p>{tx("Market reports require signatures from at least two of three configured signers. Anyone can relay a valid report and advance settlement; the contracts cannot fetch external stock prices by themselves.")}</p>
+            </details>
           </section>
         </div>
 
@@ -94,7 +96,7 @@ export function Docs({ state, onClose }: { state: State; onClose(): void }) {
         </section>
 
         <div className="docs-footer">
-          <span>{tx("Contract state and transactions are public on the chain explorer. GitHub repository access may require authorization.")}</span>
+          <span>Robinhood Chain · 4663</span>
           <a href={repository} target="_blank" rel="noopener noreferrer">GITHUB ↗</a>
         </div>
       </div>
