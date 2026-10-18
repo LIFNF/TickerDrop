@@ -1,14 +1,15 @@
 import {readFileSync,writeFileSync,linkSync,unlinkSync} from 'node:fs';
 import {validateQuoteSession,sessionSchedule} from './calendar.mjs';
+import {validateMarketRecord} from './allocation.mjs';
 
 export function readSnapshot(file,date,tickers){
  const record=JSON.parse(readFileSync(file,'utf8'));
  if(record.date!==date)throw Error('Snapshot date mismatch');
- validateQuoteSession(record,tickers);sessionSchedule(record,{},date);
+ validateMarketRecord(record,tickers);sessionSchedule(record,{},date);
  return record;
 }
 export function writeSnapshot(file,record,tickers){
- validateQuoteSession(record,tickers);sessionSchedule(record,{},record.date);
+ validateMarketRecord(record,tickers);sessionSchedule(record,{},record.date);
  const temporary=new URL(file.href+'.'+process.pid+'.tmp');
  let created=false;
  try{

@@ -8,6 +8,10 @@ const server=http.createServer((req,res)=>{
  fs.readFile(file,(error,data)=>{if(error){res.writeHead(404);res.end();return;}res.setHeader('Content-Type',file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.json')?'application/json':file.endsWith('.webp')?'image/webp':'text/html');res.end(data);});
 });
 const languages=[['en','English','Mint','Invitation code','Available after contract deployment'],['es','Español','Acuñar','Código de invitación','Disponible tras desplegar los contratos'],['zh-Hant','繁體中文','鑄造','邀請碼','待合約部署後開放'],['ja','日本語','ミント','招待コード','コントラクトのデプロイ後に利用可能']];
+const deployment=JSON.parse(fs.readFileSync('web/src/chain/deployed.json','utf8'));
+const pending=/^0x0{40}$/i.test(deployment.drop),awaiting=!pending&&deployment.status!=='active';
+const activation={en:'Automatic settlement activation pending',es:'Pendiente de activar la liquidación automática','zh-Hant':'自動結算待啟用',ja:'自動精算の有効化待ち'};
+const connect={en:'Connect your wallet to check eligibility',es:'Conecta tu cartera para consultar los requisitos','zh-Hant':'連接錢包以查看邀請資格',ja:'ウォレットを接続して招待資格を確認'};
 (async()=>{
  if(!remote){await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));server.unref();}
  const options={headless:true,executablePath:process.argv[3]};
@@ -24,7 +28,8 @@ const languages=[['en','English','Mint','Invitation code','Available after contr
   for(const [id,,title,label,status]of languages){
    await page.locator('.language-switch select').selectOption(id);
    assert.equal(await page.locator('html').getAttribute('lang'),id);assert.equal((await page.locator('#mint h2').innerText()).toLowerCase(),title.toLowerCase());
-   assert.equal(await page.getByLabel(label,{exact:true}).count(),1);assert.ok((await page.locator('.invite-box').innerText()).includes(status));
+   // The invitation input is intentionally hidden before the first 50 confirmed wallets.
+   assert.equal(await page.getByLabel(label,{exact:true}).count(),0);assert.ok((await page.locator('.invite-box').innerText()).includes(pending?status:awaiting?activation[id]:connect[id]));
    assert.equal(await page.locator('.asset-grid .cell').first().getAttribute('aria-pressed'),'true','Selection preserved');
    assert.equal(await page.evaluate(()=>window.navigationMarker),'unchanged');assert.equal(new URL(page.url()).pathname,'/mint');
    for(const route of ['engine','cutoff','book','vault']){

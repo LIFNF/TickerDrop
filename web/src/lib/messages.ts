@@ -1,6 +1,11 @@
 // Target order is fixed: Spanish, Traditional Chinese, Japanese.
 // Protocol names, tickers, wallet addresses and currency symbols are not translated.
 export const messages:Record<string,readonly [string,string,string]>={
+ "Verified allocations":["Asignaciones verificadas","已驗證分配","検証済み配分"],
+ "MARKET DATA":["DATOS DE MERCADO","市場行情","市場データ"],
+ "Reference quotes":["Cotizaciones de referencia","參考行情","参考価格"],
+ "Captured":["Consulta","採集時間","取得日時"],
+ "Quotes may be delayed. Not settlement results.":["Las cotizaciones pueden tener retraso. No son resultados de liquidación.","報價可能延遲，並非結算結果。","価格は遅延する場合があります。精算結果ではありません。"],
  "On-chain verified":["Verificado en cadena","已通過鏈上驗證","オンチェーン検証済み"],
  "No verified market report. Settlement is pending.":["Sin informe de mercado verificado. Liquidación pendiente.","尚無已驗證行情，等待結算。","検証済み市場データがありません。精算待ちです。"],
  "Trading has not started. No settlement is available yet.":["La negociación aún no ha comenzado. No hay liquidaciones disponibles.","交易尚未啟動，暫無可結算輪次。","取引は未開始です。精算可能なラウンドはありません。"],
@@ -153,7 +158,7 @@ export const messages:Record<string,readonly [string,string,string]>={
  "One NFT per company. Each mint includes 100,000 TICKR.":["Un NFT por empresa. Cada acuñación incluye 100.000 TICKR.","每家公司僅一張 NFT，每次鑄造配發 100,000 TICKR。","1社につき1つの NFT。ミントごとに100,000 TICKR を配布します。"],
  "Nasdaq top 100 by market cap":["Las 100 mayores del Nasdaq por capitalización","Nasdaq 市值前 100 名","Nasdaq 時価総額上位100社"],"Remaining companies":["Resto de empresas","其餘公司","その他の企業"],
  "Each NFT":["Cada NFT","每張 NFT","NFT ごと"],"TICKR included per mint":["TICKR incluidos por acuñación","每次鑄造配發 TICKR","ミント時の TICKR 配布量"],
-"Mint contract":["Contrato de acuñación","鑄造合約","ミントコントラクト"],"TBA":["Pendiente","待部署","未定"],"Mint proceeds: 0.1 locked liquidity · 0.9 treasury":["Ingresos de acuñación: 0,1 a liquidez bloqueada · 0,9 a la tesorería","鑄造收入：0.1 注入鎖定流動性 · 0.9 轉入國庫","ミント収入：0.1をロック済み流動性に充当・0.9をトレジャリーへ"],
+"Mint contract":["Contrato de acuñación","鑄造合約","ミントコントラクト"],"TBA":["Pendiente","待部署","未定"],"Mint proceeds: 90% liquidity budget · 10% treasury":["Ingresos de acuñación: 90 % para liquidez · 10 % para la tesorería","鑄造收入：90% 用於流動性預算 · 10% 轉入國庫","ミント収入：90%を流動性予算に充当・10%をトレジャリーへ"],
  "Search ticker / company":["Buscar símbolo / empresa","搜尋股票代碼／公司","銘柄コード・企業名を検索"],
  "All":["Todos","全部","すべて"],"Top 100":["Top 100","前 100 名","上位100社"],"Available":["Disponibles","可鑄造","ミント可能"],"Minted":["Acuñados","已鑄造","ミント済み"],
  "Picked":["Seleccionados","已選取","選択済み"],"Total":["Total","合計","合計"],"Clear":["Limpiar","清除","解除"],"Max 100 per tx":["Máximo 100 por transacción","每筆交易最多 100 張","1取引あたり最大100個"],
@@ -185,4 +190,7 @@ export const messages:Record<string,readonly [string,string,string]>={
  "Last close":["Último cierre","前次收盤","前営業日終値"],"No print":["Sin cotización","無報價資料","価格データなし"],"clipped at the 100% line":["limitado al 100% acumulado","依 100% 上限截取權重","累積100%の残余分に制限"],
  "Below the 100% line":["Fuera del límite acumulado del 100%","超出累計 100% 分配範圍","累積100%の配分範囲外"],"Flat or red: out":["Sin cambio o a la baja: excluido","平盤或下跌，不納入分配","横ばい・下落のため対象外"],
  "Rank of the day":["Posición del día","當日排名","当日順位"],"Recorded closes":["Historial de cierres","收盤紀錄","終値履歴"],"Neighbours by market cap":["Empresas próximas por capitalización","市值排名相近公司","時価総額順位が近い企業"],"Paid with it":["Otros NFT con asignación","同日獲分配個股","同日に分配対象となった銘柄"],"Mint this card":["Acuñar este NFT","鑄造此 NFT","この NFT をミント"],
+ "Automated quote checks, background signatures and on-chain payouts. No daily wallet confirmation is required.":["Verificación automática de cotizaciones, firmas en segundo plano y pagos en cadena. No se requiere confirmación diaria desde la cartera.","自動核對報價、背景簽署並在鏈上派發，無須每日操作錢包確認。","価格の自動検証、バックグラウンド署名、オンチェーン分配を行います。毎日のウォレット承認は不要です。"],
+ "Quote checks are project-operated using TradingView and Nasdaq data. Provider outages or inconsistent quotes delay settlement.":["El proyecto verifica las cotizaciones con datos de TradingView y Nasdaq. Los fallos de los proveedores o las discrepancias entre cotizaciones retrasan la liquidación.","報價由專案執行核驗，資料來自 TradingView 與 Nasdaq；來源中斷或報價不一致時，結算將延後。","価格検証はプロジェクトが運用し、TradingViewとNasdaqのデータを使用します。データ提供元の障害や価格の不一致がある場合、精算は延期されます。"],
+ "Automatic settlement activation pending":["Pendiente de activar la liquidación automática","自動結算待啟用","自動精算の有効化待ち"],
 };

@@ -15,11 +15,15 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - run: npm ci --omit=dev
-      - run: node keeper/snapshot.mjs
-      - run: node tools/feed.mjs
+      - run: node keeper/tradingview.mjs
       - name: Save market records
+        if: always()
         run: |
-          git add data/sessions data/verified-sessions.json
+          git add data/sessions
+          for file in data/verified-sessions.json data/reference-quotes.json; do
+            if [ -f "$file" ]; then git add "$file"; fi
+          done
+          node tools/check-secrets.mjs
           git diff --cached --quiet && exit 0
           git config user.name tickerdrop-bot
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

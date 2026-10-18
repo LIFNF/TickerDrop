@@ -1,6 +1,6 @@
 import {createContext,useCallback,useContext,useEffect,useState,type ReactNode} from "react";
 import {hexToString,stringToHex,type Hex} from "viem";
-import {addr,chain,dropAbi,live} from "../chain/config";
+import {addr,chain,dropAbi,live,contractsDeployed} from "../chain/config";
 import {pub,useWallet} from "./wallet";
 import {tx} from "./copy";
 
@@ -77,7 +77,7 @@ export function InviteProvider({children}:{children:ReactNode}){
  },[account,key,input,current,tick,refresh]);
  const direct=!!current?.loaded&&!current.redeemed&&(!!current.own||current.seeds<50);
  const valid=!!account&&!!current?.loaded&&(direct||!!current.redeemed||check.key===key&&check.input===input&&check.valid);
- const message=!live?"Available after contract deployment":!account?"Connect your wallet to check eligibility":current?.error||(direct?"The first 50 successful minting wallets need no code":current?.redeemed?"Your linked invitation applies automatically":!pattern.test(input)?"Enter 5 letters or digits":check.key===key&&check.input===input?check.message:"Verifying…");
+ const message=!live?(contractsDeployed?"Automatic settlement activation pending":"Available after contract deployment"):!account?"Connect your wallet to check eligibility":current?.error||(direct?"The first 50 successful minting wallets need no code":current?.redeemed?"Your linked invitation applies automatically":!pattern.test(input)?"Enter 5 letters or digits":check.key===key&&check.input===input?check.message:"Verifying…");
  const mint=async(ids:bigint[],value:bigint,label:string)=>{
   if(!valid||!account||busy)return false;
   const wallet=account,code=direct||current?.redeemed?ZERO as Hex:input?stringToHex(input,{size:5}):ZERO as Hex;

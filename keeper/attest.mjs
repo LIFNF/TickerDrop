@@ -2,6 +2,7 @@
 import {readFileSync,existsSync,mkdirSync,writeFileSync} from 'node:fs';
 import {keccak256,stringToHex,recoverAddress} from 'viem';
 import {buildRound} from './round.mjs';
+import {marketRound} from './allocation.mjs';
 import {readSnapshot} from './storage.mjs';
 import {sessionSchedule} from './calendar.mjs';
 import {pub,deployed,marketOracleAbi,tickers,dayOf,sessionsDir,log} from './lib.mjs';
@@ -14,7 +15,7 @@ async function main(){
  const date=process.argv[2];if(!/^\d{4}-\d{2}-\d{2}$/.test(date||''))throw Error('Supply a session date');
  const file=new URL(date+'.json',sessionsDir),record=readSnapshot(file,date,tickers);
  const text=readFileSync(file,'utf8'),quotesHash=keccak256(stringToHex(text)),day=dayOf(date);
- const {openedAt,closedAt,nextOpen}=sessionSchedule(record,{},date),{picked}=buildRound(record.gains,tickers);
+ const {openedAt,closedAt,nextOpen}=sessionSchedule(record,{},date),{picked}=marketRound(record,tickers);
  const args=[day,picked.map(p=>p.id),picked.map(p=>p.g),BigInt(openedAt),BigInt(closedAt),BigInt(nextOpen),quotesHash];
  const digest=await pub.readContract({address:deployed.marketOracle,abi:marketOracleAbi,functionName:'reportDigest',args});
  const results=await Promise.allSettled(endpoints.map(async endpoint=>{

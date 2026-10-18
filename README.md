@@ -1,77 +1,31 @@
-# TickerDrop
+# TickerDrop V2
 
-3,172 Nasdaq common shares and ADRs, ranked by market cap. One listing, one card. Robinhood Chain (4663).
+3,172 company NFTs on Robinhood Chain (4663). The website defaults to English, followed by Spanish, Traditional Chinese and Japanese.
 
-```
-src/Tickr.sol        TICKR, fixed 1B supply, 3% on pair buys/sells to GainPool
-src/TickerDrop.sol   ERC721: mint, built-in order book, on-chain SVG; 3% of every fill to GainPool
-src/GainPool.sol     fee pool + per-session settlement
-keeper/snapshot.mjs  records each final close to data/sessions/
-keeper/settle.mjs    at the next open, posts settle() for every recorded session
-tools/snapshot.mjs   builds the ticker table (data/tickers.*)
-web/                 site
-```
+## Contracts and economics
 
-## Rules (enforced on-chain)
+- TickerDrop: paid ERC-721 mint, wallet invitations and an internal NFT order book. IDs 1–100 cost 0.005 ETH; the remainder cost 0.001 ETH. Each NFT includes 100,000 TICKR.
+- The first 50 distinct wallets successfully mint without an invitation and receive a five-character alphanumeric code. Connecting a wallet reserves nothing. Later new wallets require another wallet's code; each code admits three distinct wallets. Referrers receive 15,000 TICKR per referred NFT from the separate reward reserve.
+- Each mint allocates 90% of ETH to liquidity and pays 10% to the fixed deployment recipient. Initial liquidity uses a proportional TICKR reserve allocation; subsequent additions match current pool reserves. Unused ETH/TICKR stay locked with no withdrawal path. Actual additions and remaining budget are distinct.
+- LiquidityVault mints liquidity through the verified Uniswap V2 Router. All received LP shares are transferred to address(0), irreversibly locking redemption rights. A failed DEX call or failed LP lock reverts the entire mint. The reserve is 635.22M TICKR; mint rewards and maximum referrals are separately funded with 317.2M and 47.58M TICKR.
+- TICKR has a fixed 1B supply. Ordinary transfers after launch pay 3% to GainPool, including wallet transfers and unregistered pools. NFT book fills pay 3%. NFT ownership transfers through the internal book.
+- Token, NFT and pool ownership are relinquished during initialization. First successful mint adds liquidity and automatically starts trading. An empty pair cannot start trading. No owner is needed for minting or settlement.
+- Company names and snapshot market caps remain in versioned site data. Immutable on-chain tickers preserve the ID mapping. Static market caps are not live quote values.
 
-- `#1–#100` 0.005 ETH, the rest 0.001 ETH. The liquidity address (`LP_VAULT`) is whitelisted at 0 ETH. Mint ETH is forwarded by the contract straight to it.
-- Every mint drops 100,000 TICKR. The mint drop totals 317.2M; the remaining 682.8M stays with the deployer for liquidity.
-- TICKR pair buys/sells, NFT book fills and ERC-2981 royalties are all 3%, all into GainPool.
-- Each session is scored on its final close and settled no earlier than 09:30 New York on the next weekday (DST handled on-chain). Positive movers are stacked by gain, descending, until the weight hits 100%. The one that crosses takes the remainder. If the positives sum to under 100%, they split the whole pool pro rata.
-- Flat and red closes get nothing. A session with no gainers pays nothing and rolls over.
-- Unminted slots and holders with < 1 TICKR forfeit their cut to the next session.
-- TICKR fees pay out in TICKR, ETH fees in ETH. Failed ETH pushes become `credit`, withdrawn via `claim()`.
-- The first scored session is the first full close after `goLive()`. Weekend days, repeated days and calls before the next open revert. Weekends and holidays settle nothing, so the pool keeps stacking into the next payout.
-- NFT approvals are limited to allowlisted operators, so third-party venues can't skip the 3%.
+## Automatic settlement
 
-## Deploy
+The automated-market-settlement workflow captures the regular close, runs automatic TradingView/Nasdaq checks, creates a 2-of-3 signature quorum and publishes at the next exchange open. The relayer then processes contract-enforced payouts in bounded batches, resuming after interruptions. No daily human signature is needed.
 
-```bash
-npm i
-forge test
+The signing tasks are project-operated, not independent providers. HTTP quote truth and availability are external trust assumptions. See [market-data operations](docs/MARKET_DATA.md) for exact validation tolerances, dependencies and failure behavior. The reference snapshot workflow cannot create settlement reports. The website displays verified allocations only after checking the oracle commitment.
 
-# REPORTER = address that posts the daily result (the keeper key's address)
-REPORTER=0x... forge script script/Deploy.s.sol --rpc-url robinhood --broadcast --private-key $PK
-```
+Positive daily changes are ranked descending, with NFT-ID tie-breaking, until cumulative weight reaches 100%. The boundary takes the remaining weight; a positive total below 100% is allocated pro rata. Missing data is never replaced with zero. All-red days roll over. Unminted NFTs and holders below one TICKR retain their allocation in the pool. Eligibility uses ownership and token balances strictly before the next session's opening. Failed ETH pushes become claimable credit.
 
-The script deploys and wires all three contracts, moves 317.2M TICKR into the NFT contract, opens the mint, and writes the addresses to `web/src/chain/deployed.json`. Commit that file; the site and the keeper both read it.
+## Deploy and test
 
-Launch order:
+Run forge test, npm run test:data, the automatic-e2e integration test and browser checks before release. The optional LIQUIDITY_FORK_RPC enables real Robinhood Uniswap integration tests without broadcasting transactions.
 
-1. Compute the TICKR/WETH pair address and call `Tickr.setPair(pair, true)` before the mint opens. Until `goLive()`, nobody can add liquidity to or trade on it.
-2. When the mint ends: `TickerDrop.closeMint()`, then `sweep()` to pull back the unminted drop.
-3. Seed the pool with the ETH in the LP address plus the deployer's TICKR (V2-style AMM; V3 can't sell fee-on-transfer tokens).
-4. `Tickr.goLive()`. The next full session is the first one scored, paid at the following open.
-5. Once configured, `renounceOwnership()` if you want.
+script/Deploy.s.sol takes three public QUOTE_SIGNER addresses and an optional DEPLOYER_PRIVATE_KEY environment variable for signing. Never commit credentials. Deployment creates the verified V2 pair, funds rewards and locked reserves, binds the oracle and relinquishes ownership. Only publish active addresses after every deployment receipt and binding is checked. A pending website configuration intentionally disables minting.
 
-## Daily settlement
+GitHub Actions uses encrypted AUTO_SIGNER_KEY_1, AUTO_SIGNER_KEY_2, AUTO_SIGNER_KEY_3 and RELAYER_KEY secrets. The relayer needs ETH for Gas. Public reports contain signatures, not private keys. GitHub scheduling and public quote endpoints have no availability guarantee; a successful idle run is not proof of a production payout.
 
-Two workflows, both on weekdays and both doubled for EDT/EST:
-
-- `snapshot` runs at 20:08 / 21:08 UTC. Once Nasdaq marks the session closed, it writes every listing's final change to `data/sessions/YYYY-MM-DD.json` and commits it. Holidays and half-filled feeds are refused.
-- `settle` runs at 13:31 / 14:31 UTC. Once the market is open, it posts every recorded session the pool hasn't settled yet, oldest first. A Friday close is paid Monday; a holiday adds nothing and the fees carry over.
-
-The committed session files are the audit trail: anyone can rerun `keeper/round.mjs` on them and compare with the on-chain `Paid` events.
-
-Repo Settings → Secrets → Actions:
-
-- `REPORTER_KEY` reporter private key (needs a little ETH for gas)
-- `RPC_URL` optional, defaults to the public endpoint
-
-Both scripts also run on any server:
-
-```bash
-node keeper/snapshot.mjs
-REPORTER_KEY=0x... node keeper/settle.mjs
-```
-
-## Site
-
-```bash
-node tools/feed.mjs        # packs the last 10 sessions into web/public/sessions.json
-cd web && npm i && npm run dev
-```
-
-One infinite canvas: every listing is a star, placed by market cap rank on a spiral around GainPool and lit by its last close. Drag to move, scroll or pinch to zoom, click a node or a star to open it. `#mint`, `#t/NVDA` deep-link straight in.
-
-Pushes to `main` and every finished `snapshot` run publish to GitHub Pages.
+Frontend releases contain only checked static artifacts. Operational private data, local test fixtures, wallet files, broadcast caches and credentials are ignored by Git and excluded from deployment. Old on-chain contracts cannot be deleted; a new release removes their active website configuration rather than changing old bytecode.

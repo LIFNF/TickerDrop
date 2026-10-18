@@ -8,6 +8,7 @@ import { gainPct, type Board } from "../lib/session";
 import { useWallet } from "../lib/wallet";
 import type { Focus } from "./draw";
 import { Gpu } from "./Gpu";
+import {useReferenceQuotes} from '../lib/reference';
 import { Clock, Die, Hardware } from "./sprites";
 import { NODES, type NodeId } from "./layout";
 
@@ -25,6 +26,7 @@ export function Countdown() {
 type Props = { tickers: Ticker[]; state: State; board?: Board; focus: Focus; onOpen(id: NodeId): void };
 
 export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
+  const reference=useReferenceQuotes();
   const { account } = useWallet();
   const floor = state.book.reduce<bigint | undefined>((m, a) => (m === undefined || a.price < m ? a.price : m), undefined);
   const drop = (SUPPLY * DROP) / 1e9;
@@ -141,16 +143,28 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
           {board.picks.length > 7 && <li className="dim more">+{board.picks.length - 7}</li>}
         </ol>
         <div className="sum">
+          {board.allocationOnly ? <span>{tx("Verified allocations")} <b>{board.picks.length}</b></span> : <>
           <span>
             <b className="y">{board.green}</b> {sp.board.green}
           </span>
           <span>
             <b className="c">{board.red}</b> {sp.board.red}
           </span>
+          </>}
           <span>
             {sp.board.sum} <b>{((board.sum / 1e6) * 100).toFixed(0)}%</b>
           </span>
         </div>
+      </>
+    ) : reference ? (
+      <>
+        <div className="row"><b>TradingView</b><span className="mono dim">{tx("Reference quotes")}</span></div>
+        <small>{tx("Captured")} {new Date(reference.capturedAt).toLocaleString()}</small>
+        <ol className="reference-prices">
+          {[...reference.rows].sort((a,b)=>b.change-a.change||a.id-b.id).slice(0,5).map(q=><li key={q.id}><b>{q.s}</b><span>${q.price.toLocaleString(undefined,{maximumFractionDigits:4})}</span><span className={q.change>=0?'y':'c'}>{q.change>0?'+':''}{q.change.toFixed(2)}%</span></li>)}
+        </ol>
+        <small>{tx("Quotes may be delayed. Not settlement results.")}</small>
+        <p className="line dim">{tx("No verified market report. Settlement is pending.")}</p>
       </>
     ) : (
       <>

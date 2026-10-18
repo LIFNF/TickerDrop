@@ -138,8 +138,21 @@ contract TickerDropTest is Test {
         while (pool.pendingDay() != 0) pool.continueSettlement(ids, gains);
     }
 
-    function _live() internal {
+    function _startTrading() internal {
+        if (tkr.liquidityVault().totalLpBurned() == 0) {
+            vm.deal(address(0xB007), 1 ether);
+            _mint(address(0xB007), 3172);
+        }
         tkr.goLive();
+    }
+
+    function test_emptyPairCannotStartTrading() public {
+        vm.expectRevert(Tickr.Locked.selector);
+        tkr.goLive();
+    }
+
+    function _live() internal {
+        _startTrading();
         // Wednesday 09:30 New York (EDT)
         vm.warp(uint256(TUE + 1) * 1 days + 13 hours + 30 minutes);
     }
@@ -158,7 +171,7 @@ contract TickerDropTest is Test {
         nft.mint{value: 0.006 ether}(_ids(1, 101), rootInvite);
         assertEq(nft.ownerOf(1), alice);
         assertEq(nft.ownerOf(101), alice);
-        assertEq(dev.balance - before, 0.0054 ether);
+        assertEq(dev.balance - before, 0.0006 ether);
         assertEq(tkr.balanceOf(alice), 200_000 ether);
         assertEq(nft.minted(), 2);
     }
@@ -185,7 +198,7 @@ contract TickerDropTest is Test {
         uint256 before = dev.balance;
         vm.prank(lp);
         nft.mint{value: 0.01 ether}(_ids(1, 2), rootInvite);
-        assertEq(dev.balance - before, 0.009 ether);
+        assertEq(dev.balance - before, 0.001 ether);
         assertEq(nft.ownerOf(2), lp);
         assertEq(tkr.balanceOf(lp), 200_000 ether);
     }
@@ -314,7 +327,7 @@ contract TickerDropTest is Test {
     }
 
     function test_tradeFee() public {
-        tkr.goLive();
+        _startTrading();
         tkr.transfer(alice, 1000 ether);
         assertEq(tkr.balanceOf(alice), 970 ether);
         vm.prank(alice);
@@ -501,7 +514,7 @@ contract TickerDropTest is Test {
 
     function test_sessionBeforeLiveSkipped() public {
         vm.warp(uint256(TUE) * 1 days + 20 hours); // 16:00 EDT
-        tkr.goLive();
+        _startTrading();
         vm.warp(uint256(TUE + 1) * 1 days + 14 hours);
         vm.prank(reporter);
         vm.expectRevert(abi.encodeWithSelector(GainPool.BadDay.selector, TUE));
@@ -509,7 +522,7 @@ contract TickerDropTest is Test {
     }
 
     function test_openClock() public {
-        tkr.goLive();
+        _startTrading();
         // Fri 2025-10-17 (EDT) -> Mon 13:30 UTC
         assertEq(pool.settleableAt(20378), 20381 * 1 days + 13.5 hours);
         // Fri 2025-10-31 -> Mon 2025-11-03, DST ended Sunday -> 14:30 UTC
@@ -528,7 +541,7 @@ contract TickerDropTest is Test {
     function test_weekendFeesRollIntoMonday() public {
         uint32 fri = 20378;
         _mint(alice, 10);
-        tkr.goLive();
+        _startTrading();
         vm.deal(address(pool), 1 ether);
         // weekend fees land before Monday's open
         vm.warp(uint256(fri + 2) * 1 days);
@@ -672,13 +685,13 @@ contract TickerDropTest is Test {
 
     function test_middayLaunchSkipsPartialSession() public {
         vm.warp(pool.nyTime(TUE, 12 hours));
-        tkr.goLive();
+        _startTrading();
         assertEq(pool.settleableAt(TUE), 0);
         assertGt(pool.settleableAt(TUE + 1), 0);
     }
 
     function test_holidayHasNoSession() public {
-        tkr.goLive();
+        _startTrading();
         assertEq(pool.settleableAt(20454), 0);
         assertEq(pool.settleableAt(20453), pool.nyTime(20455, 9.5 hours));
     }

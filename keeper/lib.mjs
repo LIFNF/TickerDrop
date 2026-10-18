@@ -1,10 +1,13 @@
 import { readFileSync } from "node:fs";
 import { createPublicClient, defineChain, http, parseAbi } from "viem";
+import {pathToFileURL} from 'node:url';
+import {resolve,sep} from 'node:path';
 
-export const root = new URL("../", import.meta.url);
+export const root = process.env.TICKERDROP_TEST_ROOT ? pathToFileURL(resolve(process.env.TICKERDROP_TEST_ROOT)+sep) : new URL("../", import.meta.url);
 export const tickers = JSON.parse(readFileSync(new URL("data/tickers.json", root)));
 export const deployed = JSON.parse(readFileSync(new URL("web/src/chain/deployed.json", root)));
 export const sessionsDir = new URL("data/sessions/", root);
+if(process.env.TICKERDROP_TEST_ROOT&&deployed.chainId!==31337)throw Error('Fixture storage is restricted to local-chain tests');
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 

@@ -57,7 +57,7 @@ export function tickerRows(raw: unknown) {
     seen.add(s); return {id:i+1,s,n,cap};
   });
 }
-export function sessionRows(raw: unknown): {date:string;gains:(number|null)[]}[] {
+export function sessionRows(raw: unknown): {date:string;gains:(number|null)[];allocationOnly?:boolean}[] {
   if(!Array.isArray(raw)||raw.length>20) throw new Error("Invalid sessions");
   const dates=new Set<string>();
   const result=Array.from(raw,row=>{
@@ -66,7 +66,7 @@ export function sessionRows(raw: unknown): {date:string;gains:(number|null)[]}[]
     if(typeof date!=="string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date))
       || new Date(date).toISOString().slice(0,10)!==date || dates.has(date) || !Array.isArray(gains) || gains.length!==3172
       || Array.from(gains).some(g=>g!==null && (!Number.isSafeInteger(g)||g < -1_000_000 || g>0xffffffff))) throw new Error("Invalid session");
-    dates.add(date); return {date,gains:gains as (number|null)[]};
+    dates.add(date); return {date,gains:gains as (number|null)[],...((row as {allocationOnly?:unknown}).allocationOnly===true?{allocationOnly:true}:{})};
   });
   return result.sort((a,b)=>b.date.localeCompare(a.date));
 }

@@ -1,4 +1,4 @@
-import { addr, chain, explorer } from "../chain/config";
+import { addr, chain, explorer, live, contractsDeployed } from "../chain/config";
 import type { State } from "../lib/data";
 import { eth, tkn } from "../lib/format";
 import { tx } from "../lib/copy";
@@ -29,7 +29,7 @@ export function Docs({ state, onClose }: { state: State; onClose(): void }) {
         <div className="docs-status">
           <span className="docs-led" aria-hidden="true" />
           <strong>{chain.name}</strong>
-          <span>{state.ready ? tx("On-chain data synced") : tx("Syncing on-chain data")}</span>
+          <span>{!live ? tx(contractsDeployed ? "Automatic settlement activation pending" : "TBA") : state.ready ? tx("On-chain data synced") : tx("Syncing on-chain data")}</span>
           <span className="docs-status-end">{tx("Minted")} {state.ready ? state.minted.toLocaleString() : "—"} / 3,172</span>
         </div>
 
@@ -41,7 +41,7 @@ export function Docs({ state, onClose }: { state: State; onClose(): void }) {
             <div className="docs-rows">
               <div><span>{tx("IDs 1–100")}</span><strong>0.005 ETH</strong></div>
               <div><span>{tx("IDs 101–3172")}</span><strong>0.001 ETH</strong></div>
-              <div><span>{tx("Mint payment")}</span><strong>{tx("Mint proceeds: 0.1 locked liquidity · 0.9 treasury")}</strong></div>
+              <div><span>{tx("Mint payment")}</span><strong>{tx("Mint proceeds: 90% liquidity budget · 10% treasury")}</strong></div>
             </div>
           </section>
 
@@ -62,6 +62,8 @@ export function Docs({ state, onClose }: { state: State; onClose(): void }) {
           <section className="docs-card">
             <span className="docs-num">04 / {tx("SETTLEMENT")}</span>
             <h2>{tx("Market-data settlement")}</h2>
+            <p>{tx("Automated quote checks, background signatures and on-chain payouts. No daily wallet confirmation is required.")}</p>
+            <p>{tx("Quote checks are project-operated using TradingView and Nasdaq data. Provider outages or inconsistent quotes delay settlement.")}</p>
             <p>{tx("Market reports require signatures from at least two of three configured signers. Anyone can relay a valid report and advance settlement; the contracts cannot fetch external stock prices by themselves.")}</p>
             <p>{state.liveAt===0?tx("Trading has not started. No settlement is available yet."):tx("Settlement requires signed market data and a relayer transaction.")}</p>
             <p>{tx("Eligibility uses the recorded snapshot: the matching NFT and at least 1 TICKR must be held in the same wallet. Unallocated fees carry forward.")}</p>
@@ -71,7 +73,8 @@ export function Docs({ state, onClose }: { state: State; onClose(): void }) {
         <section className="docs-card docs-ledger">
           <div className="docs-section-head"><div><span className="docs-num">05 / {tx("ON-CHAIN")}</span><h2>{tx("Contract registry")}</h2></div><span className="docs-chain-id">CHAIN ID 4663</span></div>
           <div className="docs-contracts">
-            {contracts.map(([name, address, description]) => (
+            {!contractsDeployed && <p>{tx("TBA")}</p>}
+            {contractsDeployed && contracts.map(([name, address, description]) => (
               <a key={name} href={`${explorer}/address/${address}`} target="_blank" rel="noopener noreferrer" className="docs-contract">
                 <span className="docs-contract-name">{name}<small>{tx(description)}</small></span>
                 <code>{address}</code><span aria-hidden="true">↗</span>

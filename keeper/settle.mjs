@@ -10,9 +10,10 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createWalletClient, http, encodeAbiParameters, keccak256, stringToHex, isHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { buildRound } from "./round.mjs";
+import {marketRound} from './allocation.mjs';
 import {safeError} from "./safe-error.mjs";
 import { nyTimestamp, sessionSchedule, validateQuoteSession } from "./calendar.mjs";
-import { marketOracleAbi, chain, dateOf, dayOf, deployed, isLive, isoOf, log, nasdaq, nyNow, poolAbi, pub, sessionsDir, sleep, tickers } from "./lib.mjs";
+import { marketOracleAbi, chain, dateOf, dayOf, deployed, isLive, isoOf, log, nasdaq, nyNow, poolAbi, pub, sessionsDir, sleep, tickers, root } from "./lib.mjs";
 
 async function main() {
   if (!isLive()) throw new Error("Deployment configuration is missing; settlement is not operational");
@@ -56,9 +57,7 @@ async function main() {
 
     const sessionText = readFileSync(new URL(`${date}.json`, sessionsDir), "utf8");
     const record = JSON.parse(sessionText);
-    validateQuoteSession(record,tickers);
-    const { gains } = record;
-    const { picked, positive, weight } = buildRound(gains, tickers);
+    const { picked, positive, weight } = marketRound(record,tickers);
     log(`${date} day=${day} green=${positive} paying=${picked.length} weight=${(weight / 1e4).toFixed(4)}%`);
     for (const p of picked) log(`  #${p.id} ${p.s.padEnd(5)} +${(p.g / 1e4).toFixed(4)}%`);
     let [expected] = await pub.readContract({address:oracle,abi:marketOracleAbi,functionName:"session",args:[day]});
@@ -68,7 +67,7 @@ async function main() {
     ));
     if (/^0x0+$/.test(expected)) {
       const {openedAt,closedAt,nextOpen} = sessionSchedule(record,info,now.date);
-      const attestationFile = new URL(`../data/attestations/${date}.json`, import.meta.url);
+      const attestationFile = new URL(`data/attestations/${date}.json`, root);
       if (!existsSync(attestationFile)) throw new Error(`${date}: independent quote attestations missing`);
       const attestations = JSON.parse(readFileSync(attestationFile,"utf8"));
       const quotesHash = keccak256(stringToHex(sessionText));

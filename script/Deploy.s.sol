@@ -41,7 +41,9 @@ contract Deploy is Script {
         require(IUniswapV2Router(router).WETH().code.length != 0, "Router WETH unavailable");
         require(IUniswapV2Router(router).factory().code.length != 0, "Router factory unavailable");
 
-        vm.startBroadcast();
+        uint256 deployerKey = vm.envOr("DEPLOYER_PRIVATE_KEY", uint256(0));
+        if (deployerKey == 0) vm.startBroadcast();
+        else vm.startBroadcast(deployerKey);
 
         Tickr tkr = new Tickr();
         GainPool pool = new GainPool(IERC20(address(tkr)), quoteSigners[0]);

@@ -6,7 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Tickr} from "../src/Tickr.sol";
 import {TickerDrop} from "../src/TickerDrop.sol";
 import {LiquidityVault} from "../src/LiquidityVault.sol";
-import {MockLiquidityRouter} from "./MockLiquidity.sol";
+import {MockLiquidityRouter, MockPair} from "./MockLiquidity.sol";
 
 contract LiquidityVaultTest is Test {
     receive() external payable {}
@@ -36,40 +36,42 @@ contract LiquidityVaultTest is Test {
         drop.mint{value: 0.005 ether}(ids, bytes5(0));
     }
 
-    function test_allReserveLockedAndMintSplitsTenNinety() public {
+    function test_allReserveLockedAndMintSplitsNinetyTen() public {
         assertEq(token.balanceOf(address(vault)), 635_220_000 ether);
         assertEq(token.balanceOf(address(this)), 364_780_000 ether - 230_000 ether);
         uint256 before = address(this).balance;
         _mint(1);
-        assertEq(router.ethAdded(), 0.0005 ether);
-        assertEq(vault.addedETH(), 0.0005 ether);
+        assertEq(router.ethAdded(), 0.0045 ether);
+        assertEq(vault.addedETH(), 0.0045 ether);
         assertEq(router.tokenAdded(), 317_610_000 ether);
-        assertEq(router.lpBalance(address(vault)), 1);
-        assertEq(address(this).balance, before - 0.0005 ether);
+        assertEq(router.lpBalance(address(vault)), 0);
+        assertEq(router.lpBalance(address(0)), 1);
+        assertEq(address(this).balance, before - 0.0045 ether);
         _mint(2);
-        assertEq(router.ethAdded(), 0.001 ether);
-        assertEq(vault.addedETH(), 0.001 ether);
+        assertEq(router.ethAdded(), 0.009 ether);
+        assertEq(vault.addedETH(), 0.009 ether);
         assertEq(router.tokenAdded(), 635_220_000 ether);
         assertEq(token.balanceOf(address(vault)), 0);
-        assertEq(router.lpBalance(address(vault)), 2);
+        assertEq(router.lpBalance(address(vault)), 0);
+        assertEq(router.lpBalance(address(0)), 2);
         (bool canWithdraw,) = address(vault).call(abi.encodeWithSignature("withdraw(address,uint256)", address(this), 1));
         assertFalse(canWithdraw);
     }
 
-    function test_routerFailureQueuesLiquidityWithoutBlockingMint() public {
+    function test_routerFailureRevertsPaymentAndMintThenRetrySucceeds() public {
         router.setReject(true);
+        uint256 before = address(this).balance;
+        vm.expectRevert("Rejected");
         _mint(1);
-        assertEq(vault.pendingETH(), 0.0005 ether);
+        assertEq(address(this).balance, before);
+        assertEq(vault.accountedMintETH(), 0);
         assertEq(vault.addedETH(), 0);
-        assertEq(vault.pendingTokens(), 317_610_000 ether);
-        assertEq(drop.minted(), 1);
+        assertEq(drop.minted(), 0);
         router.setReject(false);
-        vm.prank(address(777));
-        vault.processLiquidity();
-        assertEq(vault.pendingETH(), 0);
-        assertEq(vault.addedETH(), 0.0005 ether);
-        assertEq(vault.pendingTokens(), 0);
-        assertEq(router.lpBalance(address(vault)), 1);
+        _mint(1);
+        assertEq(vault.addedETH(), 0.0045 ether);
+        assertEq(drop.minted(), 1);
+        assertEq(router.lpBalance(address(vault)), 0);
     }
 
     function test_onlyBoundDropCanAllocateReserve() public {
@@ -77,5 +79,17 @@ contract LiquidityVaultTest is Test {
         vm.prank(address(777));
         vm.expectRevert(LiquidityVault.Forbidden.selector);
         vault.depositMint{value: 0.0005 ether}(0.005 ether);
+    }
+
+    function test_changedPoolRatioStillMintsAndLocksUnusedBudget() public {
+        _mint(1);
+        // A trade changes the reserve ratio. No fixed initial-price check may block the next mint.
+        MockPair(address(vault.pair())).setReserves(uint112(635_220_000 ether), uint112(0.0045 ether));
+        _mint(2);
+        assertEq(drop.minted(), 2);
+        assertEq(vault.addedETH(), 0.00675 ether);
+        assertEq(address(vault).balance, 0.00225 ether);
+        assertEq(router.lpBalance(address(vault)), 0);
+        assertEq(router.lpBalance(address(0)), 2);
     }
 }

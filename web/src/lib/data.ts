@@ -81,8 +81,8 @@ async function readAll(account?: Address): Promise<State> {
       const vault=await pub.readContract({...t,functionName:"liquidityVault",blockNumber});
       const [addedETH,pendingETH,pendingTICKR,heldTICKR]=await Promise.all([
         pub.readContract({address:vault,abi:liquidityVaultAbi,functionName:"addedETH",blockNumber}),
-        pub.readContract({address:vault,abi:liquidityVaultAbi,functionName:"pendingETH",blockNumber}),
-        pub.readContract({address:vault,abi:liquidityVaultAbi,functionName:"pendingTokens",blockNumber}),
+        pub.getBalance({address:vault,blockNumber}),
+        Promise.resolve(0n),
         pub.readContract({address:addr.tickr,abi:tickrAbi,functionName:"balanceOf",args:[vault],blockNumber}),
       ]);
       return {ready:true,addedETH,pendingETH,heldTICKR,pendingTICKR};

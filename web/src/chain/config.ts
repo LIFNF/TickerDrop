@@ -27,7 +27,8 @@ export const addr = {
   marketOracle: deployed.marketOracle as Address,
 };
 
-export const live = !/^0x0{40}$/i.test(addr.drop);
+export const contractsDeployed = !/^0x0{40}$/i.test(addr.drop);
+export const live = deployed.version === 2 && deployed.status === "active" && contractsDeployed;
 
 export const SUPPLY = 3172;
 export const TOP = 100;
@@ -82,6 +83,6 @@ export const tickrAbi = parseAbi([
 export const liquidityVaultAbi = parseAbi([
   "function accountedMintETH() view returns (uint256)",
   "function addedETH() view returns (uint256)",
-  "function pendingETH() view returns (uint256)",
-  "function pendingTokens() view returns (uint256)",
+  "function totalLpBurned() view returns (uint256)",
+  "function previewMint(uint256 cost) view returns (uint256 tokenDesired, uint256 ethDesired, uint256 ethBudget)",
 ]);

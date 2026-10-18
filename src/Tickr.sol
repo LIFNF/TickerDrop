@@ -77,6 +77,7 @@ contract Tickr is ERC20, Ownable {
     /// @notice Call once liquidity is in. Opens pair trading and starts the daily settlement clock.
     function goLive() external {
         if (liveAt != 0) revert Locked();
+        if (liquidityVault.totalLpBurned() == 0) revert Locked();
         if (pool == address(0)) revert ZeroAddress();
         if (ILaunchPool(pool).drop() == address(0) || ILaunchPool(pool).marketOracle() == address(0)
             || liquidityVault.drop() != ILaunchPool(pool).drop()) revert Locked();

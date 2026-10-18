@@ -20,7 +20,7 @@ interface IQuorumToken {
     function liveAt() external view returns (uint64);
 }
 
-/// @notice Permissionless relay of results attested by a fixed quorum of independent price reviewers.
+/// @notice Permissionless relay of results attested by a fixed quorum of configured price reviewers.
 /// @dev Signatures prove agreement by the configured signers, not the truth of an external HTTP quote.
 contract QuorumMarketOracle is IMarketOracle, EIP712 {
     bytes32 private constant REPORT_TYPEHASH = keccak256(

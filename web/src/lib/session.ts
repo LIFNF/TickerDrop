@@ -7,11 +7,12 @@ import {pub} from "./wallet";
 import {markData} from "./reliable";
 
 // gains are in contract units: 1e6 = 100%, null = no print that day
-export type Session = { date: string; gains: (number | null)[] };
+export type Session = { date: string; gains: (number | null)[];allocationOnly?:boolean };
 
 export type Pick = { id: number; gain: number; weight: number; share: number };
 
 export type Board = {
+  allocationOnly?:boolean;
   date: string;
   picks: Pick[];
   green: number;
@@ -66,7 +67,7 @@ export function boardOf(s: Session): Board {
     picks.push({ id: i + 1, gain: g, weight: w, share: 0 });
   }
   picks.forEach((p) => (p.share = p.weight / sum));
-  return { date: s.date, picks, green: order.length, red, sum };
+  return { date: s.date, picks, green: order.length, red, sum,allocationOnly:s.allocationOnly };
 }
 
 export const gainPct = (units: number, dp = 2) => `${units > 0 ? "+" : ""}${(units / 1e4).toLocaleString(numberLocale(),{minimumFractionDigits:dp,maximumFractionDigits:dp})}%`;

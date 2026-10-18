@@ -6,6 +6,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TickerDrop} from "../src/TickerDrop.sol";
 import {Tickr} from "../src/Tickr.sol";
 import {MockLiquidityRouter} from "./MockLiquidity.sol";
+import {GainPool, IDrop} from "../src/GainPool.sol";
+import {QuorumMarketOracle} from "../src/QuorumMarketOracle.sol";
 
 contract InvitesTest is Test {
     TickerDrop nft;
@@ -17,6 +19,12 @@ contract InvitesTest is Test {
         for (uint256 i; i < 60; ++i) table = bytes.concat(table, hex"4141410000");
         nft = new TickerDrop(IERC20(address(token)), payable(address(this)), table);
         token.liquidityVault().configure(address(nft), new MockLiquidityRouter());
+        GainPool pool = new GainPool(IERC20(address(token)), address(101));
+        pool.bind(IDrop(address(nft)));
+        address[] memory signers = new address[](3);
+        signers[0] = address(101); signers[1] = address(102); signers[2] = address(103);
+        pool.bindMarketOracle(new QuorumMarketOracle(address(pool), signers, 2));
+        token.setPool(address(pool));
         for (uint256 i = 1; i <= 60; ++i) nft.setCompany(i, "Company", 100);
         token.transfer(address(nft), nft.supply() * nft.DROP());
         token.approve(address(nft), nft.supply() * nft.INVITE_REWARD());

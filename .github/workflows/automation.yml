@@ -1,0 +1,58 @@
+name: automated-market-settlement
+on:
+  schedule:
+    - cron: "17,37,57 13-23 * * 1-5"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: market-data
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - run: npm ci --omit=dev
+      - name: Capture eligible regular-session close
+        id: capture
+        run: node keeper/capture-session.mjs
+      - name: Automatic source review A
+        if: steps.capture.outputs.ready == 'true'
+        continue-on-error: true
+        run: node keeper/auto-attest.mjs '${{ steps.capture.outputs.date }}'
+        env:
+          AUTO_SIGNER_KEY: ${{ secrets.AUTO_SIGNER_KEY_1 }}
+      - name: Automatic source review B
+        if: steps.capture.outputs.ready == 'true'
+        continue-on-error: true
+        run: node keeper/auto-attest.mjs '${{ steps.capture.outputs.date }}'
+        env:
+          AUTO_SIGNER_KEY: ${{ secrets.AUTO_SIGNER_KEY_2 }}
+      - name: Automatic source review C
+        if: steps.capture.outputs.ready == 'true'
+        continue-on-error: true
+        run: node keeper/auto-attest.mjs '${{ steps.capture.outputs.date }}'
+        env:
+          AUTO_SIGNER_KEY: ${{ secrets.AUTO_SIGNER_KEY_3 }}
+      - name: Finalize a verified signature quorum
+        if: steps.capture.outputs.ready == 'true'
+        run: node keeper/assemble-attestations.mjs '${{ steps.capture.outputs.date }}'
+      - name: Publish and complete due settlements
+        run: node keeper/run-automatic.mjs
+        env:
+          RELAYER_KEY: ${{ secrets.RELAYER_KEY }}
+      - name: Save public reports and recovery state
+        if: always()
+        run: |
+          node tools/check-secrets.mjs
+          for directory in data/candidates data/attestations data/sessions; do
+            if [ -d "$directory" ]; then git add "$directory"; fi
+          done
+          if [ -f data/verified-sessions.json ]; then git add data/verified-sessions.json; fi
+          git diff --cached --quiet && exit 0
+          git config user.name tickerdrop-bot
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'data: preserve automated market review and settlement state'
+          git push
