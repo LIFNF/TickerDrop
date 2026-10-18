@@ -1,8 +1,11 @@
-import { defineConfig } from "vite";
+import {defineConfig} from "vite";
 import react from "@vitejs/plugin-react";
-
+import {checkBeforeBuild} from "./tools/privacy.mjs";
+const policy="default-src 'self'; script-src 'self' https://challenges.cloudflare.com https://js.hcaptcha.com https://*.hcaptcha.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.privy.io https://api.web3modal.org https://api.web3modal.com https://*.walletconnect.com https://*.reown.com; font-src 'self'; connect-src 'self' https://raw.githubusercontent.com https://rpc.mainnet.chain.robinhood.com https://rpc.testnet.chain.robinhood.com https://*.privy.io https://*.privy.systems https://api.web3modal.org https://api.web3modal.com https://*.walletconnect.com https://*.walletconnect.org https://*.reown.com wss://*.walletconnect.com wss://*.walletconnect.org wss://*.reown.com https://*.coinbase.com https://*.walletlink.org wss://*.walletlink.org https://*.metamask.io wss://*.metamask.io https://*.hcaptcha.com https://challenges.cloudflare.com; frame-src https://*.privy.io https://*.walletconnect.com https://*.walletconnect.org https://*.reown.com https://*.coinbase.com https://*.hcaptcha.com https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; upgrade-insecure-requests";
 export default defineConfig({
-  base: process.env.BASE || "/",
-  plugins: [react()],
-  build: { target: "es2022", chunkSizeWarningLimit: 900 },
+ base:process.env.BASE||"/",
+ resolve:{alias:[{find:/^@stripe\/stripe-js$/,replacement:"@stripe/stripe-js/pure"},{find:/^@stripe\/crypto$/,replacement:"@stripe/crypto/pure"}]},
+ plugins:[react(),{name:"privacy-release-guard",apply:"build",buildStart(){checkBeforeBuild();},transformIndexHtml(html){return html.replace("<head>",`<head><meta http-equiv="Content-Security-Policy" content="${policy}">`);}}],
+ build:{target:"es2022",chunkSizeWarningLimit:1200,sourcemap:false,manifest:false,minify:"esbuild",rollupOptions:{onwarn(warning,warn){if(warning.code==="INVALID_ANNOTATION"&&warning.id?.includes("node_modules/"))return;warn(warning);},output:{manualChunks(id){if(!id.includes("node_modules"))return;const pkg=id.replaceAll("\\","/").split("/node_modules/").at(-1)||"";if(/^(?:react|react-dom|scheduler)\//.test(pkg))return "vendor-react";if(/^(?:viem|ox|abitype|isows|ws|eventemitter3|webauthn-p256)\/|^@(?:noble|scure|adraffy)\//.test(pkg))return "vendor-chain";return "vendor-wallet";}}}},
+ esbuild:{drop:["console","debugger"],legalComments:"none"},
 });

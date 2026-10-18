@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { live } from "../chain/config";
-import { t } from "../lib/copy";
+import { t,tx } from "../lib/copy";
 import type { Ticker } from "../lib/data";
 import { short } from "../lib/format";
 import { useWallet } from "../lib/wallet";
 import type { Camera, Rect } from "./camera";
 import { thumb, type Paint } from "./draw";
 import { WORLD, type NodeId } from "./layout";
+import {routePath} from "../lib/routes";
+import {LanguageSwitch} from "../components/LanguageSwitch";
 
 const sp = t.space;
 
@@ -22,10 +24,11 @@ function useZoom(cam: Camera) {
   const [k, setK] = useState(cam.k);
   useEffect(() => {
     let raf = 0;
-    return cam.on(() => {
+    const off = cam.on(() => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => setK(cam.k));
     });
+    return () => { off(); cancelAnimationFrame(raf); };
   }, [cam]);
   return k;
 }
@@ -63,7 +66,7 @@ function Search({ tickers, onPick }: { tickers: Ticker[]; onPick(id: number): vo
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 120)}
         onKeyDown={(e) => {
-          if (e.key === "ArrowDown") setSel((i) => Math.min(hits.length - 1, i + 1));
+          if (e.key === "ArrowDown") setSel((i) => Math.max(0, Math.min(hits.length - 1, i + 1)));
           else if (e.key === "ArrowUp") setSel((i) => Math.max(0, i - 1));
           else if (e.key === "Enter" && hits[sel]) pick(hits[sel].id);
           else if (e.key === "Escape") (e.target as HTMLInputElement).blur();
@@ -86,9 +89,9 @@ function Search({ tickers, onPick }: { tickers: Ticker[]; onPick(id: number): vo
   );
 }
 
-type TopProps = { tickers: Ticker[]; active?: NodeId; onNav(id: NodeId): void; onHome(): void; onFind(id: number): void };
+type TopProps = { tickers: Ticker[]; active?: NodeId; docsActive?: boolean; onNav(id: NodeId): void; onDocs(): void; onHome(): void; onFind(id: number): void };
 
-export function Top({ tickers, active, onNav, onHome, onFind }: TopProps) {
+export function Top({ tickers, active, docsActive, onNav, onDocs, onHome, onFind }: TopProps) {
   const { account, connect, wrongChain } = useWallet();
   return (
     <header className="top">
@@ -98,16 +101,25 @@ export function Top({ tickers, active, onNav, onHome, onFind }: TopProps) {
       </button>
       <nav>
         {NAV.map(([k, id]) => (
-          <button key={k} className={active === id ? "on" : ""} onClick={() => onNav(id)}>
+          <a key={k} href={routePath({kind:"page",page:k},import.meta.env.BASE_URL)} className={active === id ? "on" : ""} aria-current={active===id?"page":undefined} onClick={(e) => {
+            if(e.button!==0||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;
+            e.preventDefault();onNav(id);
+          }}>
             {t.nav[k]}
-          </button>
+          </a>
         ))}
+        <a href={routePath({kind:"page",page:"docs"},import.meta.env.BASE_URL)} className={docsActive ? "on" : ""} aria-current={docsActive?"page":undefined} onClick={(e) => {
+          if(e.button!==0||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;
+          e.preventDefault();onDocs();
+        }}>{tx("Docs")}</a>
       </nav>
       <Search tickers={tickers} onPick={onFind} />
       {!live && <span className="chip off">{t.offline}</span>}
+      <a className="source-link" href="https://github.com/LIFNF/TickerDrop" target="_blank" rel="noopener noreferrer" aria-label={tx("GitHub source repository")} title={tx("GitHub source repository")}><span aria-hidden="true">⌘</span><b>GITHUB</b><span className="source-arrow" aria-hidden="true">↗</span></a>
       <button className={`btn sm ${account ? "ghost c" : ""}`} onClick={connect}>
         {account ? (wrongChain ? t.wrongChain : short(account)) : t.connect}
       </button>
+      <LanguageSwitch />
     </header>
   );
 }
@@ -120,11 +132,11 @@ export function Zoom({ cam, onHome, view }: { cam: Camera; onHome(): void; view(
   };
   return (
     <div className="zoom">
-      <button onClick={() => at(1 / 1.4)} aria-label="zoom out">
+      <button onClick={() => at(1 / 1.4)} aria-label={tx("Zoom out")}>
         −
       </button>
       <span className="mono">{Math.round(k * 100)}%</span>
-      <button onClick={() => at(1.4)} aria-label="zoom in">
+      <button onClick={() => at(1.4)} aria-label={tx("Zoom in")}>
         +
       </button>
       <button onClick={onHome} aria-label={sp.fit} title={sp.fit}>

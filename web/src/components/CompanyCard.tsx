@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import type { Ticker } from "../lib/data";
 import { compact } from "../lib/format";
+import {tx} from "../lib/copy";
 
 const palettes = ["#9ee86f", "#81b8ff", "#e5a8ff", "#ffad77", "#79e0d4", "#f0d68a"];
 const identities: Record<string, [string, string, number]> = {
@@ -24,6 +25,7 @@ export function identity(tk: Ticker) {
 /** Original schematic illustrations, not official company logos. */
 export function CompanyArt({ ticker }: { ticker: Ticker }) {
   const [color, label, mode] = identity(ticker);
+  const caption=label.startsWith("MARKET SIGNAL / ")?`${tx("MARKET SIGNAL")} / ${ticker.s}`:tx(label);
   const n = seed(ticker.s);
   return <span className="company-art" style={{ "--art": color } as CSSProperties}>
     <svg viewBox="0 0 320 190" fill="none" aria-hidden="true">
@@ -61,7 +63,7 @@ export function CompanyArt({ ticker }: { ticker: Ticker }) {
       <text x="27" y="35" fill="currentColor" opacity=".55" fontSize="8" fontFamily="monospace">{ticker.s} / {String(n % 65536).padStart(5, "0")}</text>
       <text x="293" y="163" textAnchor="end" fill="currentColor" opacity=".55" fontSize="8" fontFamily="monospace">FIG. {String(ticker.id).padStart(4, "0")}</text>
     </svg>
-    <span className="art-caption">{label}</span>
+    <span className="art-caption">{caption}</span>
   </span>;
 }
 
@@ -86,14 +88,15 @@ function CardEmblem({ symbol, mode }: { symbol: string; mode: number }) {
   ];
   return <svg className="card-emblem" viewBox="0 0 32 32" shapeRendering="crispEdges" aria-hidden="true"><path d={paths[symbol] ?? defaults[mode]} fill="currentColor" fillRule="evenodd" /></svg>;
 }
-export function CompanyFace({ ticker, status }: { ticker: Ticker; status: string }) {
+export function CompanyFace({ ticker, status }: { ticker: Ticker; status: "owned"|"minted"|"selected"|"available" }) {
   const [accent, concept, mode] = identity(ticker);
+  const caption=tx(concept.split(" / ")[0]);
   return <span className="company-face" style={{ "--art": accent } as CSSProperties}>
     <span className="card-circuit" aria-hidden="true" />
     <CardEmblem symbol={ticker.s} mode={mode} />
     <span className="compact-head"><span className="company-mark" aria-hidden="true">{ticker.s.slice(0, 1)}</span><strong>{ticker.s}</strong><span className="compact-rank">#{ticker.id}</span></span>
     <span className="compact-name">{ticker.n}</span>
-    <span className="compact-meta"><span title="Market cap from the collection dataset">${compact(ticker.cap)}</span><span>{ticker.id <= 100 ? "0.005" : "0.001"} ETH</span></span>
-    <span className="compact-footer"><span className="compact-state">{status === "SELECT +" ? (ticker.id <= 100 ? "TOP 100" : "NASDAQ") : status}</span><span className="card-concept" title={concept}>{concept.split(" / ")[0]}</span><span className="card-edition">1/1</span></span>
+    <span className="compact-meta"><span title={tx("Market cap from the collection dataset")}>${compact(ticker.cap)}</span><span>{ticker.id <= 100 ? "0.005" : "0.001"} ETH</span></span>
+    <span className="compact-footer"><span className="compact-state">{status==="available"?(ticker.id<=100?tx("TOP 100"):"NASDAQ"):tx(status==="owned"?"Owned":status==="minted"?"Minted":"Selected ✓")}</span><span className="card-concept" title={caption}>{caption}</span><span className="card-edition">1/1</span></span>
   </span>;
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Book } from "./components/Book";
 import { Toasts } from "./components/Chrome";
 import { Cutoff } from "./components/Cutoff";
+import { Docs } from "./components/Docs";
 import { Engine } from "./components/Engine";
 import { Mint } from "./components/Mint";
 import { Vault } from "./components/Vault";
@@ -15,6 +16,7 @@ import { Inspector } from "./space/Inspector";
 import { INNER, node, sky, WORLD } from "./space/layout";
 import { Nodes } from "./space/Nodes";
 import { Space } from "./space/Space";
+import {readRoute,routePath,type Page} from "./lib/routes";
 
 const phone = () => window.innerWidth < 760;
 const RIG = 1440;
@@ -55,6 +57,7 @@ export default function App() {
   const board = useMemo(() => (last ? boardOf(last) : undefined), [last]);
 
   const [focus, setFocus] = useState<Focus>(null);
+  const [docsOpen, setDocsOpen] = useState(false);
   const [intro, setIntro] = useState(true);
   const [touched, setTouched] = useState(false);
   const shown = useRef<Focus>(null);
@@ -74,9 +77,18 @@ export default function App() {
   }, [stars, tickers, last, board, state.mine, state.taken]);
 
   const go = useCallback(
-    (f: Focus) => {
+    (f: Focus, mode:"push"|"replace"="push") => {
+      setDocsOpen(false);
       setFocus(f);
       setTouched(true);
+      const route = !f ? {kind:"home"} as const : f.kind === "node"
+        ? {kind:"page",page:(NAV.find(([, id])=>id===f.id)?.[0]||"mint") as Page} as const
+        : {kind:"ticker",symbol:tickers[f.id-1]?.s||String(f.id)} as const;
+      const url = routePath(route,import.meta.env.BASE_URL)+location.search;
+      if(url!==location.pathname+location.search+location.hash){
+        if(mode==="replace")history.replaceState(null,"",url);
+        else history.pushState(null,"",url);
+      }
       if (!f) return;
       setIntro(false);
       const v = viewOf(f);
@@ -85,16 +97,25 @@ export default function App() {
         const s = stars[f.id - 1];
         if (s) cam.fly(s.x, s.y, Math.min(2.6, Math.max(cam.k, 1.8)), v.x + v.w / 2, v.y + v.h / 2);
       }
-      const tag = f.kind === "node" ? NAV.find(([, id]) => id === f.id)?.[0] ?? f.id : `t/${tickers[f.id - 1]?.s ?? f.id}`;
-      history.replaceState(null, "", `#${tag}`);
     },
     [cam, stars, tickers],
   );
 
-  const close = useCallback(() => {
+  const goDocs = useCallback((mode:"push"|"replace"="push") => {
     setFocus(null);
-    history.replaceState(null, "", location.pathname + location.search);
-  }, []);
+    setDocsOpen(true);
+    setIntro(false);
+    setTouched(true);
+    const url=routePath({kind:"page",page:"docs"},import.meta.env.BASE_URL)+location.search;
+    if(url!==location.pathname+location.search+location.hash){
+      if(mode==="replace")history.replaceState(null,"",url);
+      else history.pushState(null,"",url);
+    }
+  },[]);
+
+  const close = useCallback(() => {
+    go(null);
+  }, [go]);
 
   const home = useCallback(() => {
     close();
@@ -116,19 +137,28 @@ export default function App() {
     homeView(cam, 1600);
   }, [cam]);
 
-  // deep links: #mint, #t/NVDA
+  // Clean path deep links, old hash compatibility, and browser back/forward.
   const linked = useRef(false);
   useEffect(() => {
-    if (linked.current || !tickers.length) return;
-    linked.current = true;
-    const h = decodeURIComponent(location.hash.slice(1));
-    if (!h) return;
-    const nav = NAV.find(([k]) => k === h);
-    if (nav) return void setTimeout(() => go({ kind: "node", id: nav[1] }), 400);
-    const sym = h.startsWith("t/") ? h.slice(2).toUpperCase() : "";
-    const tk = sym && tickers.find((x) => x.s === sym);
-    if (tk) setTimeout(() => go({ kind: "tk", id: tk.id }), 400);
-  }, [tickers, go]);
+    if (!tickers.length) return;
+    const sync=()=>{
+      const route=readRoute(location.pathname,location.hash,import.meta.env.BASE_URL);
+      if(route.kind==="page"){
+        if(route.page==="docs"){goDocs("replace");return;}
+        const nav=NAV.find(([k])=>k===route.page);
+        if(nav){go({kind:"node",id:nav[1]},"replace");return;}
+      }
+      if(route.kind==="ticker"){
+        const tk=tickers.find(x=>x.s===route.symbol);
+        if(tk){go({kind:"tk",id:tk.id},"replace");return;}
+      }
+      go(null,"replace");setIntro(true);homeView(cam);
+    };
+    if(!linked.current){linked.current=true;sync();}
+    window.addEventListener("popstate",sync);
+    window.addEventListener("hashchange",sync);
+    return()=>{window.removeEventListener("popstate",sync);window.removeEventListener("hashchange",sync);};
+  }, [tickers, go, goDocs, cam]);
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -137,7 +167,7 @@ export default function App() {
       const v = viewOf(focus);
       const cx = v.x + v.w / 2;
       const cy = v.y + v.h / 2;
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") docsOpen ? home() : close();
       else if (e.key === "+" || e.key === "=") cam.zoomAt(cx, cy, 1.4);
       else if (e.key === "-" || e.key === "_") cam.zoomAt(cx, cy, 1 / 1.4);
       else if (e.key === "0") home();
@@ -150,7 +180,7 @@ export default function App() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [cam, focus, close, home]);
+  }, [cam, focus, docsOpen, close, home]);
 
   const moved = useCallback(() => {
     setTouched(true);
@@ -164,7 +194,7 @@ export default function App() {
   if (f?.kind === "node") {
     const mod = node(f.id).mod;
     const pin = t.space.pins[f.id];
-    title = pin.toLowerCase().includes(t.nav[mod].toLowerCase()) ? pin : `${pin} · ${t.nav[mod]}`;
+    title = f.id==="core"||f.id==="tickr" ? `${pin} · ${t.nav[mod]}` : t.nav[mod];
     body =
       mod === "engine" ? (
         <Engine />
@@ -188,10 +218,13 @@ export default function App() {
       <Top
         tickers={tickers}
         active={focus?.kind === "node" ? focus.id : undefined}
+        docsActive={docsOpen}
         onNav={(id) => go({ kind: "node", id })}
+        onDocs={() => goDocs()}
         onHome={home}
         onFind={(id) => go({ kind: "tk", id })}
       />
+      {docsOpen && <Docs state={state} onClose={home} />}
       <Intro show={intro && !focus} onEnter={enter} onMint={() => go({ kind: "node", id: "mint" })} />
       <div className="dock">
         <Zoom cam={cam} onHome={home} view={view} />

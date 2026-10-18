@@ -2,11 +2,13 @@ import { CompanyArt } from "../components/CompanyCard";
 import { useMemo, type ReactNode } from "react";
 import { addr, dropAbi, live, PRICE, TOP, TOP_PRICE } from "../chain/config";
 import { Contracts } from "../components/Chrome";
-import { t } from "../lib/copy";
+import { t,tx } from "../lib/copy";
 import type { State, Ticker } from "../lib/data";
 import { compact, eth } from "../lib/format";
 import { boardOf, gainPct, type Board, type Session } from "../lib/session";
 import { useWallet } from "../lib/wallet";
+import {useInvites} from "../lib/invites";
+import {Invites} from "../components/Invites";
 import type { Focus } from "./draw";
 
 const k = t.space.tk;
@@ -15,6 +17,7 @@ type CardProps = { id: number; tickers: Ticker[]; state: State; sessions: Sessio
 
 function TickerCard({ id, tickers, state, sessions, board, onFocus }: CardProps) {
   const { send } = useWallet();
+  const invite = useInvites();
   const tk = tickers[id - 1];
   const last = sessions[0];
   const g = last?.gains[id - 1];
@@ -22,7 +25,7 @@ function TickerCard({ id, tickers, state, sessions, board, onFocus }: CardProps)
   const ask = state.book.find((a) => a.id === id);
   const mine = state.mine.includes(id);
   const taken = state.taken.has(id);
-  const price = state.free ? 0n : id <= TOP ? TOP_PRICE : PRICE;
+  const price = id <= TOP ? TOP_PRICE : PRICE;
 
   const rank = useMemo(() => {
     if (!last || g === null || g === undefined) return 0;
@@ -46,13 +49,10 @@ function TickerCard({ id, tickers, state, sessions, board, onFocus }: CardProps)
   if (!tk) return null;
 
   const status = mine ? k.yours : ask ? `${k.listed} · ${eth(ask.price, 5)} ETH` : taken ? k.taken : k.free;
-  const mint = () =>
-    send(`MINT ${tk.s}`, (w, a) =>
-      w.writeContract({ account: a, chain: w.chain, address: addr.drop, abi: dropAbi, functionName: "mint", args: [[BigInt(id)]], value: price }),
-    );
+  const mint = () => invite.mint([BigInt(id)],price,`${t.mint.go} ${tk.s}`);
   const buy = () =>
     ask &&
-    send(`BUY ${tk.s}`, (w, a) =>
+    send(`${k.buy} ${tk.s}`, (w, a) =>
       w.writeContract({ account: a, chain: w.chain, address: addr.drop, abi: dropAbi, functionName: "buy", args: [BigInt(id)], value: ask.price }),
     );
 
@@ -65,7 +65,7 @@ function TickerCard({ id, tickers, state, sessions, board, onFocus }: CardProps)
       <div className="tk-head">
         <span className="mono dim">#{id}</span>
         <h2 className={id <= TOP ? "y" : ""}>{tk.s}</h2>
-        {id <= TOP && <span className="chip y">TOP 100</span>}
+        {id <= TOP && <span className="chip y">{tx("TOP 100")}</span>}
       </div>
       <p className="tk-name">{tk.n}</p>
 
@@ -90,16 +90,18 @@ function TickerCard({ id, tickers, state, sessions, board, onFocus }: CardProps)
 
       <div className="tk-acts">
         {live && !taken && (
-          <button className="btn" disabled={state.phase !== 1} onClick={mint}>
+          <button className="btn" disabled={!state.ready || state.phase !== 1 || !invite.valid} onClick={mint}>
             {k.mint} · {eth(price)} ETH
           </button>
         )}
         {live && ask && !mine && (
-          <button className="btn m" onClick={buy}>
+          <button className="btn m" disabled={!state.ready} onClick={buy}>
             {k.buy} · {eth(ask.price, 5)} ETH
           </button>
         )}
       </div>
+
+      {!taken && <Invites />}
 
       <h4>
         {k.last} {last ? `· ${last.date}` : ""}
@@ -181,10 +183,10 @@ type Props = CardProps & { open: boolean; title: string; onClose(): void; childr
 
 export function Inspector({ open, title, onClose, children, ticker, ...card }: Props) {
   return (
-    <aside className={`sheet${open ? " open" : ""}${ticker ? " narrow" : ""}`} aria-hidden={!open}>
+    <aside className={`sheet${open ? " open" : ""}${ticker ? " narrow" : ""}`} aria-hidden={!open} inert={!open}>
       <div className="sheet-bar">
         <span>{title}</span>
-        <button onClick={onClose} aria-label="close">
+        <button onClick={onClose} aria-label={tx("Close")}>
           ✕
         </button>
       </div>

@@ -2,10 +2,42 @@
 pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Tickr} from "../src/Tickr.sol";
 import {TickerDrop} from "../src/TickerDrop.sol";
 import {GainPool, IDrop} from "../src/GainPool.sol";
+
+import {IMarketOracle} from "../src/IMarketOracle.sol";
+import {MockLiquidityRouter} from "./MockLiquidity.sol";
+
+// TEST ONLY: never use this oracle in deployment.
+contract TestMarketOracle is IMarketOracle {
+    mapping(uint32 => bytes32) public roots;
+    uint32 private expectedDay;
+
+    function nextSession(uint32) external view returns (uint32) {
+        return expectedDay == 0 ? 20375 : expectedDay;
+    }
+    GainPool immutable p;
+
+    constructor(GainPool pool_) {
+        p = pool_;
+    }
+
+    function session(uint32 day) external view returns (bytes32, uint64, uint64, uint64) {
+        uint256 wd = (uint256(day) + 4) % 7;
+        if (wd == 0 || wd == 6 || day == 20454) return (bytes32(0), 0, 0, 0); // New Year's Day
+        uint256 next = uint256(day) + (wd == 5 ? 3 : 1);
+        if (next == 20454) next++;
+        return (
+            roots[day] == 0 ? bytes32(uint256(1)) : roots[day],
+            uint64(p.nyTime(day, 9.5 hours)),
+            uint64(p.nyTime(day, 16 hours)),
+            uint64(p.nyTime(next, 9.5 hours))
+        );
+    }
+}
 
 contract Rejector {
     receive() external payable {
@@ -14,10 +46,14 @@ contract Rejector {
 }
 
 contract TickerDropTest is Test {
+    receive() external payable {}
+    TestMarketOracle oracle;
     Tickr tkr;
     GainPool pool;
     TickerDrop nft;
 
+    bytes5 rootInvite;
+    bytes5 fallbackInvite;
     address dev = address(this);
     address reporter = makeAddr("reporter");
     address alice = makeAddr("alice");
@@ -36,11 +72,22 @@ contract TickerDropTest is Test {
         tkr = new Tickr();
         pool = new GainPool(IERC20(address(tkr)), reporter);
         nft = new TickerDrop(IERC20(address(tkr)), payable(address(pool)), table);
+        tkr.liquidityVault().configure(address(nft), new MockLiquidityRouter());
         pool.bind(IDrop(address(nft)));
+        oracle = new TestMarketOracle(pool);
+        pool.bindMarketOracle(oracle);
         tkr.setPool(address(pool));
         tkr.setPair(pair, true);
         tkr.transfer(address(nft), nft.supply() * nft.DROP());
+        uint256 referralFunding = nft.supply() * nft.INVITE_REWARD();
+        tkr.approve(address(nft), referralFunding);
+        nft.fundReferral(referralFunding);
+        for (uint256 id = 1; id <= nft.supply(); ++id) {
+            nft.setCompany(id, "Test Company", 1_000_000);
+        }
         nft.openMint();
+        // Test-only spending balance for ordinary-transfer scenarios; production deploy keeps no remainder.
+        deal(address(tkr), address(this), 2_000_000 ether);
 
         vm.deal(alice, 10 ether);
         vm.deal(bob, 10 ether);
@@ -60,13 +107,35 @@ contract TickerDropTest is Test {
 
     function _mint(address who, uint256 id) internal {
         uint256 cost = nft.price(id);
-        vm.prank(who);
-        nft.mint{value: cost}(_ids(id));
+        // Large settlement fixtures can transfer a minted NFT after the direct-mint quota closes.
+        if (nft.registeredWallet(who) || nft.seedCount() < 50) {
+            vm.prank(who);
+            nft.mint{value: cost}(_ids(id), bytes5(0));
+        } else {
+            vm.deal(address(this), address(this).balance + cost);
+            nft.mint{value: cost}(_ids(id), bytes5(0));
+            nft.list(id, 1);
+            vm.prank(who);
+            nft.buy{value: 1}(id);
+            tkr.transfer(who, nft.DROP());
+        }
     }
 
     function _round(uint16[] memory ids, uint32[] memory gains) internal {
         vm.prank(reporter);
-        pool.settle(TUE, ids, gains);
+        _verifiedSettle(TUE, ids, gains);
+    }
+
+    function _verifiedSettle(uint32 day, uint16[] memory ids, uint32[] memory gains) internal {
+        // Test fixture authentication; production uses a real verified market adapter.
+        vm.store(
+            address(oracle),
+            keccak256(abi.encode(day, uint256(0))),
+            keccak256(abi.encode(block.chainid, address(pool), day, ids, gains))
+        );
+        vm.store(address(oracle), bytes32(uint256(1)), bytes32(uint256(day)));
+        pool.settle(day, ids, gains);
+        while (pool.pendingDay() != 0) pool.continueSettlement(ids, gains);
     }
 
     function _live() internal {
@@ -84,12 +153,12 @@ contract TickerDropTest is Test {
     }
 
     function test_mintPricing() public {
-        uint256 before = lp.balance;
+        uint256 before = dev.balance;
         vm.prank(alice);
-        nft.mint{value: 0.006 ether}(_ids(1, 101));
+        nft.mint{value: 0.006 ether}(_ids(1, 101), rootInvite);
         assertEq(nft.ownerOf(1), alice);
         assertEq(nft.ownerOf(101), alice);
-        assertEq(lp.balance - before, 0.006 ether);
+        assertEq(dev.balance - before, 0.0054 ether);
         assertEq(tkr.balanceOf(alice), 200_000 ether);
         assertEq(nft.minted(), 2);
     }
@@ -97,30 +166,43 @@ contract TickerDropTest is Test {
     function test_mintWrongValue() public {
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(TickerDrop.WrongValue.selector, 0.005 ether));
-        nft.mint{value: 0.001 ether}(_ids(1));
+        nft.mint{value: 0.001 ether}(_ids(1), rootInvite);
     }
 
     function test_mintTwice() public {
         _mint(alice, 7);
         vm.prank(bob);
         vm.expectRevert();
-        nft.mint{value: 0.001 ether}(_ids(7));
+        nft.mint{value: 0.001 ether}(_ids(7), rootInvite);
     }
 
-    function test_lpFreeMint() public {
+    function test_noFreeMintAndFeesReachDeployer() public {
+        assertEq(nft.mintRecipient(), payable(dev));
         vm.prank(lp);
-        nft.mint(_ids(1, 2));
+        vm.expectRevert(abi.encodeWithSelector(TickerDrop.WrongValue.selector, 0.01 ether));
+        nft.mint(_ids(1, 2), rootInvite);
+        vm.deal(lp, 1 ether);
+        uint256 before = dev.balance;
+        vm.prank(lp);
+        nft.mint{value: 0.01 ether}(_ids(1, 2), rootInvite);
+        assertEq(dev.balance - before, 0.009 ether);
         assertEq(nft.ownerOf(2), lp);
         assertEq(tkr.balanceOf(lp), 200_000 ether);
     }
 
-    function test_closedMint() public {
-        nft.closeMint();
-        vm.prank(alice);
+    function test_mintCannotBeClosedOrSweptBeforeSellout() public {
+        assertEq(nft.owner(), address(0));
         vm.expectRevert(TickerDrop.BadPhase.selector);
-        nft.mint{value: 0.001 ether}(_ids(500));
         nft.sweep();
-        assertEq(tkr.balanceOf(address(nft)), 0);
+        vm.prank(alice);
+        nft.mint{value: 0.001 ether}(_ids(500), rootInvite);
+        assertEq(nft.ownerOf(500), alice);
+    }
+
+    function test_ownerCannotWithdrawUnmintedTokens() public {
+        vm.expectRevert(TickerDrop.BadPhase.selector);
+        nft.sweep();
+        assertEq(tkr.balanceOf(address(nft)), nft.supply() * (nft.DROP() + nft.INVITE_REWARD()));
     }
 
     function test_tokenURI() public {
@@ -147,14 +229,62 @@ contract TickerDropTest is Test {
         assertEq(s, address(0));
     }
 
-    function test_transferKillsAsk() public {
+    function test_mintListsImmediatelyAndRecordsMarketAndPoolFunding() public {
+        _mint(alice, 200);
+        assertEq(tkr.liveAt(), 0); // NFT book is usable before token trading starts.
+        vm.prank(alice);
+        nft.list(200, 1 ether);
+        (uint256[] memory ids, address[] memory sellers, uint256[] memory prices) = nft.book();
+        assertEq(ids.length, 1);
+        assertEq(ids[0], 200);
+        assertEq(sellers[0], alice);
+        assertEq(prices[0], 1 ether);
+
+        vm.recordLogs();
+        vm.prank(bob);
+        nft.buy{value: 1 ether}(200);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bool funded;
+        bool sold;
+        for (uint256 i; i < logs.length; ++i) {
+            if (logs[i].emitter == address(pool)
+                && logs[i].topics[0] == keccak256("ETHFunded(address,uint256)")) funded = true;
+            if (logs[i].emitter == address(nft)
+                && logs[i].topics[0] == keccak256("Sold(uint256,address,address,uint256,uint256)")) sold = true;
+        }
+        assertTrue(funded);
+        assertTrue(sold);
+        (uint256 ethPot,) = pool.pot();
+        assertEq(ethPot, 0.03 ether);
+        assertEq(nft.ownerOf(200), bob);
+        (ids,,) = nft.book();
+        assertEq(ids.length, 0);
+    }
+
+    function test_ownersRelinquishedBeforeMintAndTradingStartsAutomatically() public {
+        assertEq(nft.owner(), address(0));
+        assertEq(pool.owner(), address(0));
+        tkr.renounceOwnership();
+        assertEq(tkr.owner(), address(0));
+        assertEq(tkr.liveAt(), 0);
+        _mint(alice, 200);
+        assertGt(tkr.liveAt(), 0);
+        vm.prank(alice);
+        nft.list(200, 0.1 ether);
+        vm.prank(bob);
+        nft.buy{value: 0.1 ether}(200);
+        assertEq(nft.ownerOf(200), bob);
+    }
+
+    function test_directTransferBlockedAndListingPreserved() public {
         _mint(alice, 200);
         vm.startPrank(alice);
         nft.list(200, 1 ether);
+        vm.expectRevert();
         nft.transferFrom(alice, carol, 200);
         vm.stopPrank();
         vm.prank(bob);
-        vm.expectRevert(TickerDrop.NotListed.selector);
+        // A rejected direct transfer must preserve the valid listing.
         nft.buy{value: 1 ether}(200);
     }
 
@@ -186,10 +316,11 @@ contract TickerDropTest is Test {
     function test_tradeFee() public {
         tkr.goLive();
         tkr.transfer(alice, 1000 ether);
+        assertEq(tkr.balanceOf(alice), 970 ether);
         vm.prank(alice);
-        tkr.transfer(pair, 1000 ether);
-        assertEq(tkr.balanceOf(pair), 970 ether);
-        assertEq(tkr.balanceOf(address(pool)), 30 ether);
+        tkr.transfer(pair, 970 ether);
+        assertEq(tkr.balanceOf(pair), 940.9 ether);
+        assertEq(tkr.balanceOf(address(pool)), 59.1 ether);
 
         vm.prank(pair);
         tkr.transfer(bob, 100 ether);
@@ -197,7 +328,7 @@ contract TickerDropTest is Test {
 
         vm.prank(bob);
         tkr.transfer(carol, 50 ether);
-        assertEq(tkr.balanceOf(carol), 50 ether);
+        assertEq(tkr.balanceOf(carol), 48.5 ether);
     }
 
     // --------------------------------------------------------------- payout
@@ -245,7 +376,7 @@ contract TickerDropTest is Test {
 
         vm.prank(reporter);
         vm.expectRevert(abi.encodeWithSelector(GainPool.PastCap.selector, 1));
-        pool.settle(TUE, ids, g);
+        _verifiedSettle(TUE, ids, g);
     }
 
     function test_proRataUnderFull() public {
@@ -326,13 +457,13 @@ contract TickerDropTest is Test {
         (g[0], g[1]) = (100, 200);
         vm.prank(reporter);
         vm.expectRevert(abi.encodeWithSelector(GainPool.BadOrder.selector, 1));
-        pool.settle(TUE, ids, g);
+        _verifiedSettle(TUE, ids, g);
 
         (ids[0], ids[1]) = (5, 5);
         (g[0], g[1]) = (200, 100);
         vm.prank(reporter);
         vm.expectRevert(abi.encodeWithSelector(GainPool.BadId.selector, 5));
-        pool.settle(TUE, ids, g);
+        _verifiedSettle(TUE, ids, g);
     }
 
     function test_dayRules() public {
@@ -341,35 +472,31 @@ contract TickerDropTest is Test {
 
         vm.prank(reporter);
         vm.expectRevert(GainPool.NotLive.selector);
-        pool.settle(TUE, none, nog);
+        _verifiedSettle(TUE, none, nog);
 
         _live();
-
-        vm.prank(alice);
-        vm.expectRevert(GainPool.NotReporter.selector);
-        pool.settle(TUE, none, nog);
 
         // Tuesday's close is not final until Wednesday's open
         vm.warp(uint256(TUE + 1) * 1 days + 13 hours + 29 minutes);
         vm.prank(reporter);
         vm.expectRevert(abi.encodeWithSelector(GainPool.TooEarly.selector, uint256(TUE + 1) * 1 days + 13.5 hours));
-        pool.settle(TUE, none, nog);
+        _verifiedSettle(TUE, none, nog);
 
         // Saturday
         vm.warp(uint256(TUE + 6) * 1 days);
         vm.prank(reporter);
         vm.expectRevert(abi.encodeWithSelector(GainPool.BadDay.selector, TUE + 4));
-        pool.settle(TUE + 4, none, nog);
+        _verifiedSettle(TUE + 4, none, nog);
 
         // Wednesday's session, settled Thursday at the open
         vm.warp(uint256(TUE + 2) * 1 days + 13.5 hours);
         vm.prank(reporter);
-        pool.settle(TUE + 1, none, nog);
+        _verifiedSettle(TUE + 1, none, nog);
 
         // can't go back
         vm.prank(reporter);
         vm.expectRevert(abi.encodeWithSelector(GainPool.BadDay.selector, TUE));
-        pool.settle(TUE, none, nog);
+        _verifiedSettle(TUE, none, nog);
     }
 
     function test_sessionBeforeLiveSkipped() public {
@@ -378,7 +505,7 @@ contract TickerDropTest is Test {
         vm.warp(uint256(TUE + 1) * 1 days + 14 hours);
         vm.prank(reporter);
         vm.expectRevert(abi.encodeWithSelector(GainPool.BadDay.selector, TUE));
-        pool.settle(TUE, new uint16[](0), new uint32[](0));
+        _verifiedSettle(TUE, new uint16[](0), new uint32[](0));
     }
 
     function test_openClock() public {
@@ -392,7 +519,7 @@ contract TickerDropTest is Test {
         // Fri 2026-03-06 -> Mon 2026-03-09, DST began Sunday -> 13:30 UTC
         assertEq(pool.settleableAt(20518), 20521 * 1 days + 13.5 hours);
         // Wed 2025-12-31 -> Thu 2026-01-01, across the year
-        assertEq(pool.settleableAt(20453), 20454 * 1 days + 14.5 hours);
+        assertEq(pool.settleableAt(20453), 20455 * 1 days + 14.5 hours);
         // close times
         assertEq(pool.nyTime(TUE, 16 hours), uint256(TUE) * 1 days + 20 hours);
         assertEq(pool.nyTime(20517, 16 hours), 20517 * 1 days + 21 hours);
@@ -414,12 +541,12 @@ contract TickerDropTest is Test {
         vm.warp(uint256(fri + 3) * 1 days + 13.5 hours - 1);
         vm.prank(reporter);
         vm.expectRevert(abi.encodeWithSelector(GainPool.TooEarly.selector, uint256(fri + 3) * 1 days + 13.5 hours));
-        pool.settle(fri, ids, g);
+        _verifiedSettle(fri, ids, g);
 
         vm.warp(uint256(fri + 3) * 1 days + 13.5 hours);
         uint256 a0 = alice.balance;
         vm.prank(reporter);
-        pool.settle(fri, ids, g);
+        _verifiedSettle(fri, ids, g);
         assertEq(alice.balance - a0, 1.5 ether);
     }
 
@@ -427,7 +554,7 @@ contract TickerDropTest is Test {
         Rejector r = new Rejector();
         vm.deal(address(r), 1 ether);
         vm.prank(address(r));
-        nft.mint{value: 0.001 ether}(_ids(300));
+        nft.mint{value: 0.001 ether}(_ids(300), rootInvite);
         _live();
         _fund(1 ether, 0);
 
@@ -443,6 +570,7 @@ contract TickerDropTest is Test {
     }
 
     function test_wideRoundGas() public {
+        _mint(address(this), 301); // a seed wallet supplies post-quota book transfers
         uint256 n = 200;
         uint16[] memory ids = new uint16[](n);
         uint32[] memory g = new uint32[](n);
@@ -488,5 +616,264 @@ contract TickerDropTest is Test {
         (uint256 left,) = pool.pot();
         assertLe(left, 3);
         assertEq(address(pool).balance, left);
+    }
+
+    function test_snapshotKeepsOpeningHolderAfterLaterSale() public {
+        _mint(alice, 10);
+        _live();
+        vm.warp(block.timestamp + 60);
+        vm.prank(alice);
+        nft.list(10, 1 ether);
+        vm.prank(bob);
+        nft.buy{value: 1 ether}(10);
+        _fund(1 ether, 0);
+        uint256 a0 = alice.balance;
+        uint256 b0 = bob.balance;
+        uint16[] memory ids = new uint16[](1);
+        uint32[] memory g = new uint32[](1);
+        (ids[0], g[0]) = (10, 10_000);
+        _round(ids, g);
+        assertEq(alice.balance - a0, 1 ether);
+        assertEq(bob.balance, b0);
+        assertEq(nft.ownerOf(10), bob);
+    }
+
+    function test_openingTimestampTransferCannotRewriteSnapshot() public {
+        _mint(alice, 10);
+        _live();
+        uint256 aliceTokens = tkr.balanceOf(alice);
+        vm.prank(alice);
+        tkr.transfer(carol, aliceTokens);
+        _fund(1 ether, 0);
+        uint256 a0 = alice.balance;
+        uint16[] memory ids = new uint16[](1);
+        uint32[] memory g = new uint32[](1);
+        (ids[0], g[0]) = (10, 10_000);
+        _round(ids, g);
+        assertEq(alice.balance - a0, 1 ether);
+    }
+
+    function test_fundingAfterOpenDoesNotCreateEligibility() public {
+        _mint(alice, 10);
+        uint256 aliceTokens = tkr.balanceOf(alice);
+        vm.prank(alice);
+        tkr.transfer(carol, aliceTokens);
+        _live();
+        tkr.transfer(alice, 100 ether);
+        _fund(1 ether, 0);
+        uint256 a0 = alice.balance;
+        uint16[] memory ids = new uint16[](1);
+        uint32[] memory g = new uint32[](1);
+        (ids[0], g[0]) = (10, 10_000);
+        _round(ids, g);
+        assertEq(alice.balance, a0);
+        assertEq(address(pool).balance, 1 ether);
+    }
+
+    function test_middayLaunchSkipsPartialSession() public {
+        vm.warp(pool.nyTime(TUE, 12 hours));
+        tkr.goLive();
+        assertEq(pool.settleableAt(TUE), 0);
+        assertGt(pool.settleableAt(TUE + 1), 0);
+    }
+
+    function test_holidayHasNoSession() public {
+        tkr.goLive();
+        assertEq(pool.settleableAt(20454), 0);
+        assertEq(pool.settleableAt(20453), pool.nyTime(20455, 9.5 hours));
+    }
+
+    function test_unverifiedAndOmittedDataCannotSettle() public {
+        _live();
+        uint16[] memory ids = new uint16[](1);
+        uint32[] memory g = new uint32[](1);
+        (ids[0], g[0]) = (10, 10_000);
+        vm.expectRevert(GainPool.UnverifiedMarketData.selector);
+        pool.settle(TUE, ids, g);
+        bytes32 root = keccak256(abi.encode(block.chainid, address(pool), TUE, ids, g));
+        vm.store(address(oracle), keccak256(abi.encode(TUE, uint256(0))), root);
+        vm.expectRevert(GainPool.UnverifiedMarketData.selector);
+        pool.settle(TUE, new uint16[](0), new uint32[](0));
+        g[0]++;
+        vm.expectRevert(GainPool.UnverifiedMarketData.selector);
+        pool.settle(TUE, ids, g);
+    }
+
+    function test_oracleCannotBeReplaced() public {
+        vm.expectRevert();
+        pool.bindMarketOracle(oracle);
+    }
+
+    function test_taxConfigurationFrozenAfterLaunch() public {
+        _live();
+        assertEq(tkr.owner(), address(0));
+        assertEq(pool.owner(), address(0));
+        assertEq(nft.owner(), address(0));
+        vm.expectRevert();
+        tkr.setPair(pair, false);
+        vm.expectRevert();
+        tkr.setExempt(alice, true);
+    }
+
+    function test_companyMetadataFrozenAtMintOpen() public {
+        vm.expectRevert();
+        nft.setCompany(1, "Changed name", 999);
+        (string memory name, uint128 cap) = nft.companies(1);
+        assertEq(name, "Test Company");
+        assertEq(cap, 1_000_000);
+    }
+
+    function test_cannotAuthorizeBypassOperator() public {
+        vm.expectRevert();
+        nft.setOperator(bob, true);
+    }
+
+    struct MetadataInput {
+        uint256 cap;
+        uint256 id;
+        string n;
+        string s;
+    }
+
+    function test_deploymentDatasetDecodedWithoutFieldMixups() public view {
+        MetadataInput[] memory rows = abi.decode(vm.parseJson(vm.readFile("data/tickers.json")), (MetadataInput[]));
+        assertEq(rows.length, nft.supply());
+        assertEq(rows[0].id, 1);
+        assertEq(rows[0].s, "NVDA");
+        assertGt(bytes(rows[0].n).length, 0);
+        assertGt(rows[0].cap, 1e12);
+        assertEq(rows[rows.length - 1].id, rows.length);
+    }
+
+    function test_cannotSettlePastAnEarlierQueuedDay() public {
+        _live();
+        uint16[] memory ids = new uint16[](0);
+        uint32[] memory gains = new uint32[](0);
+        vm.store(
+            address(oracle),
+            keccak256(abi.encode(TUE, uint256(0))),
+            keccak256(abi.encode(block.chainid, address(pool), TUE, ids, gains))
+        );
+        vm.store(address(oracle), bytes32(uint256(1)), bytes32(uint256(TUE - 1)));
+        vm.expectRevert(abi.encodeWithSelector(GainPool.BadDay.selector, TUE));
+        pool.settle(TUE, ids, gains);
+    }
+
+    function test_launchClearsTemporaryTaxExemptions() public {
+        tkr.setExempt(alice, true);
+        tkr.transfer(alice, 1000 ether);
+        _live();
+        assertFalse(tkr.exempt(alice));
+        assertFalse(tkr.exempt(address(this)));
+        assertTrue(tkr.exempt(address(pool)));
+        vm.prank(alice);
+        tkr.transfer(pair, 1000 ether);
+        assertEq(tkr.balanceOf(pair), 970 ether);
+    }
+
+    function test_openMintNeedsFundingButNotCompanyMetadata() public {
+        TickerDrop fresh = new TickerDrop(IERC20(address(tkr)), payable(address(pool)), hex"41414100004242420000");
+        vm.expectRevert(TickerDrop.BadPhase.selector);
+        fresh.openMint();
+        assertEq(fresh.metadataCount(), 0);
+        vm.expectRevert(TickerDrop.BadPhase.selector);
+        fresh.openMint();
+        deal(address(tkr), address(fresh), 2 * (fresh.DROP() + fresh.INVITE_REWARD()));
+        tkr.approve(address(fresh), 2 * fresh.INVITE_REWARD());
+        fresh.fundReferral(2 * fresh.INVITE_REWARD());
+        fresh.openMint();
+        assertEq(fresh.metadataCount(), 0);
+        vm.expectRevert();
+        fresh.setCompany(1, "Changed", 100);
+    }
+
+    function test_noCompanyDataStillMintsWithOnChainTickerMetadata() public {
+        Tickr token = new Tickr();
+        TickerDrop fresh = new TickerDrop(IERC20(address(token)), payable(address(pool)), hex"4141410000");
+        token.liquidityVault().configure(address(fresh), new MockLiquidityRouter());
+        token.transfer(address(fresh), fresh.DROP());
+        token.approve(address(fresh), fresh.INVITE_REWARD());
+        fresh.fundReferral(fresh.INVITE_REWARD());
+        fresh.openMint();
+        vm.prank(alice);
+        fresh.mint{value: fresh.TOP_PRICE()}(_ids(1), bytes5(0));
+        assertEq(fresh.symbolOf(1), "AAA");
+        assertGt(bytes(fresh.tokenURI(1)).length, 100);
+    }
+
+    function test_largeRoundResumesWithoutChangingBudgetOrRecipients() public {
+        uint16[] memory ids = new uint16[](140);
+        uint32[] memory gains = new uint32[](140);
+        for (uint256 i; i < 140; ++i) {
+            _mint(alice, 101 + i);
+            ids[i] = uint16(101 + i);
+            gains[i] = 1000;
+        }
+        _live();
+        _fund(140 ether, 0);
+        vm.store(
+            address(oracle),
+            keccak256(abi.encode(TUE, uint256(0))),
+            keccak256(abi.encode(block.chainid, address(pool), TUE, ids, gains))
+        );
+        uint256 before = alice.balance;
+        pool.settle(TUE, ids, gains);
+        assertEq(pool.pendingCursor(), 64);
+        assertEq(pool.pendingDay(), TUE);
+        assertEq(pool.lastDay(), 0);
+        assertEq(alice.balance - before, 64 ether);
+        vm.expectRevert(GainPool.Locked.selector);
+        pool.settle(TUE, ids, gains);
+        gains[0]++;
+        vm.expectRevert(GainPool.BadInput.selector);
+        pool.continueSettlement(ids, gains);
+        gains[0]--;
+        // New deposits between batches belong to a subsequent round.
+        vm.deal(address(pool), address(pool).balance + 100 ether);
+        vm.warp(block.timestamp + 1);
+        uint256 tokens = tkr.balanceOf(alice);
+        vm.prank(alice);
+        tkr.transfer(bob, tokens);
+        pool.continueSettlement(ids, gains);
+        assertEq(pool.pendingCursor(), 128);
+        pool.continueSettlement(ids, gains);
+        assertEq(pool.pendingDay(), 0);
+        assertEq(pool.lastDay(), TUE);
+        assertEq(alice.balance - before, 140 ether);
+        assertEq(address(pool).balance, 100 ether);
+        (,, uint16 paid,,,,) = pool.rounds(0);
+        assertEq(paid, 140);
+    }
+
+    function test_fullCollectionRoundCompletesInBoundedBatches() public {
+        _mint(alice, 1);
+        _live();
+        _fund(3172 ether, 0);
+        uint16[] memory ids = new uint16[](3172);
+        uint32[] memory gains = new uint32[](3172);
+        for (uint256 i; i < ids.length; ++i) {
+            ids[i] = uint16(i + 1);
+            gains[i] = 1;
+        }
+        vm.store(
+            address(oracle),
+            keccak256(abi.encode(TUE, uint256(0))),
+            keccak256(abi.encode(block.chainid, address(pool), TUE, ids, gains))
+        );
+        uint256 a0 = alice.balance;
+        pool.settle(TUE, ids, gains);
+        uint256 batches = 1;
+        while (pool.pendingDay() != 0) {
+            uint256 cursor = pool.pendingCursor();
+            pool.continueSettlement(ids, gains);
+            if (pool.pendingDay() != 0) assertEq(pool.pendingCursor() - cursor, 64);
+            batches++;
+        }
+        assertEq(batches, 50);
+        assertEq(alice.balance - a0, 1 ether);
+        assertEq(address(pool).balance, 3171 ether);
+        (, uint16 gainers, uint16 paid,,,,) = pool.rounds(0);
+        assertEq(gainers, 3172);
+        assertEq(paid, 1);
     }
 }

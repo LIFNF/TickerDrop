@@ -1,3 +1,4 @@
+import {tx} from "../lib/copy";
 import type { Ticker } from "../lib/data";
 import { gainPct, type Pick } from "../lib/session";
 import type { Camera } from "./camera";
@@ -182,7 +183,7 @@ export function draw(ctx: CanvasRenderingContext2D, w: number, h: number, cam: C
     // short hops get crowded by the pins
     if (Math.hypot(q.b.x - q.a.x, q.b.y - q.a.y) * k < 150) continue;
     const m = at(q, 0.5);
-    tag(ctx, l.label, sx(m.x), sy(m.y), l.color);
+    tag(ctx, tx(l.label), sx(m.x), sy(m.y), l.color);
   }
   ctx.textAlign = "left";
 }

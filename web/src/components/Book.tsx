@@ -3,34 +3,35 @@ import { parseEther } from "viem";
 import { addr, dropAbi, explorer, live } from "../chain/config";
 import type { State, Ticker } from "../lib/data";
 import { eth, short } from "../lib/format";
-import { t } from "../lib/copy";
+import { t,tx } from "../lib/copy";
 import { useWallet } from "../lib/wallet";
+import {ChainActivity} from "./ChainActivity";
 
 export function Book({ tickers, state }: { tickers: Ticker[]; state: State }) {
   const b = t.book;
-  const { account, send, connect } = useWallet();
+  const { account, send, connect, busy } = useWallet();
   const [prices, setPrices] = useState<Record<number, string>>({});
+  const [priceError,setPriceError]=useState(false);
 
   const asks = [...state.book].sort((x, y) => (x.price < y.price ? -1 : x.price > y.price ? 1 : x.id - y.id));
   const askOf = new Map(state.book.map((a) => [a.id, a]));
   const me = account?.toLowerCase();
 
   const buy = (id: number, price: bigint) =>
-    send(`BUY #${id}`, (w, a) => w.writeContract({ account: a, chain: w.chain, address: addr.drop, abi: dropAbi, functionName: "buy", args: [BigInt(id)], value: price }));
+    send(`${b.buy} #${id}`, (w, a) => w.writeContract({ account: a, chain: w.chain, address: addr.drop, abi: dropAbi, functionName: "buy", args: [BigInt(id)], value: price }));
 
   const list = (id: number) => {
     let v: bigint;
     try {
       v = parseEther((prices[id] || "").trim());
-    } catch {
-      return;
-    }
-    if (v <= 0n) return;
-    send(`LIST #${id}`, (w, a) => w.writeContract({ account: a, chain: w.chain, address: addr.drop, abi: dropAbi, functionName: "list", args: [BigInt(id), v] }));
+    } catch { setPriceError(true); return; }
+    if (v <= 0n || v > (1n << 96n)-1n) { setPriceError(true); return; }
+    setPriceError(false);
+    send(`${b.list} #${id}`, (w, a) => w.writeContract({ account: a, chain: w.chain, address: addr.drop, abi: dropAbi, functionName: "list", args: [BigInt(id), v] }));
   };
 
   const unlist = (id: number) =>
-    send(`CANCEL #${id}`, (w, a) => w.writeContract({ account: a, chain: w.chain, address: addr.drop, abi: dropAbi, functionName: "unlist", args: [BigInt(id)] }));
+    send(`${b.unlist} #${id}`, (w, a) => w.writeContract({ account: a, chain: w.chain, address: addr.drop, abi: dropAbi, functionName: "unlist", args: [BigInt(id)] }));
 
   return (
     <section className="mod" id="book">
@@ -42,7 +43,7 @@ export function Book({ tickers, state }: { tickers: Ticker[]; state: State }) {
 
       <div className="two">
         <div className="panel">
-          <h3>ASKS · {asks.length}</h3>
+          <h3>{tx("Listings")} · {asks.length}</h3>
           <div className="scroll">
             {asks.length === 0 ? (
               <div className="emptyrow">{b.empty}</div>
@@ -74,7 +75,7 @@ export function Book({ tickers, state }: { tickers: Ticker[]; state: State }) {
                         {a.seller.toLowerCase() === me ? (
                           <span style={{ color: "var(--dim)", fontSize: 11 }}>{b.yours}</span>
                         ) : (
-                          <button className="btn sm" disabled={!live} onClick={() => buy(a.id, a.price)}>
+                          <button className="btn sm" disabled={!live || !state.ready || busy} onClick={() => buy(a.id, a.price)}>
                             {b.buy}
                           </button>
                         )}
@@ -116,15 +117,15 @@ export function Book({ tickers, state }: { tickers: Ticker[]; state: State }) {
                         inputMode="decimal"
                         placeholder={b.price}
                         value={prices[id] || ""}
-                        onChange={(e) => setPrices((p) => ({ ...p, [id]: e.target.value.replace(/[^0-9.]/g, "") }))}
+                        onChange={(e) => {setPriceError(false);setPrices((p) => ({ ...p, [id]: e.target.value.replace(/[^0-9.]/g, "") }));}}
                       />
                     )}
                     {ask ? (
-                      <button className="btn ghost m sm" onClick={() => unlist(id)}>
+                      <button className="btn ghost m sm" disabled={!state.ready || busy} onClick={() => unlist(id)}>
                         {b.unlist}
                       </button>
                     ) : (
-                      <button className="btn ghost sm" disabled={!prices[id]} onClick={() => list(id)}>
+                      <button className="btn ghost sm" disabled={!state.ready || !prices[id] || busy} onClick={() => list(id)}>
                         {b.list}
                       </button>
                     )}
@@ -135,6 +136,8 @@ export function Book({ tickers, state }: { tickers: Ticker[]; state: State }) {
           )}
         </div>
       </div>
+      {priceError&&<p role="alert">{tx("Enter a valid listing price in ETH.")}</p>}
+      <ChainActivity kind="market"/>
     </section>
   );
 }

@@ -8,17 +8,32 @@ export const sessionsDir = new URL("data/sessions/", root);
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
+const networks={4663:"https://rpc.mainnet.chain.robinhood.com",46630:"https://rpc.testnet.chain.robinhood.com",31337:"http://127.0.0.1:8545"};
+const networkId=deployed.chainId||4663;
+if(!networks[networkId])throw new Error("Unsupported deployment network");
 export const chain = defineChain({
   id: deployed.chainId || 4663,
   name: "Robinhood Chain",
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: { default: { http: [process.env.RPC_URL || "https://rpc.mainnet.chain.robinhood.com"] } },
+  rpcUrls: { default: { http: [process.env.RPC_URL || networks[networkId]] } },
 });
 
 export const pub = createPublicClient({ chain, transport: http() });
 
+export const marketOracleAbi = parseAbi([
+  "function session(uint32 day) view returns (bytes32 commitment, uint64 openedAt, uint64 closedAt, uint64 nextOpen)",
+  "function threshold() view returns (uint8)",
+  "function reportDigest(uint32 day, uint16[] ids, uint32[] gains, uint64 openedAt, uint64 closedAt, uint64 nextOpen, bytes32 quotesHash) view returns (bytes32)",
+  "function isSigner(address) view returns (bool)",
+  "function publish(uint32 day, uint16[] ids, uint32[] gains, uint64 openedAt, uint64 closedAt, uint64 nextOpen, bytes32 quotesHash, bytes[] signatures)",
+]);
+
 export const poolAbi = parseAbi([
+  "function marketOracle() view returns (address)",
   "function lastDay() view returns (uint32)",
+  "function pendingDay() view returns (uint32)",
+  "function pendingCursor() view returns (uint16)",
+  "function continueSettlement(uint16[] ids, uint32[] gains)",
   "function settleableAt(uint32) view returns (uint256)",
   "function settle(uint32 day, uint16[] ids, uint32[] gains)",
 ]);

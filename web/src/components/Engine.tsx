@@ -1,5 +1,6 @@
-import { t } from "../lib/copy";
-import { SUPPLY, DROP } from "../chain/config";
+import { t,tx } from "../lib/copy";
+import { SUPPLY, DROP,REFERRAL_DROP } from "../chain/config";
+import {compact,pct} from "../lib/format";
 
 const Y = "#ffd400";
 const M = "#ff2bd6";
@@ -159,7 +160,7 @@ function Holder() {
         {e.holder.toUpperCase()}
       </text>
       <text x="878" y="440" fill={DIM} fontSize="11">
-        CARD + {e.hold}
+        {tx("NFT + {balance}",{balance:e.hold})}
       </text>
       <text x="1142" y="420" fill={M} fontSize="12" textAnchor="end">
         ETH
@@ -195,8 +196,8 @@ function Wide() {
   const pRoll = "M880 350 C 860 420 660 410 620 340";
   return (
     <svg className="wide" viewBox="20 30 1160 440">
-      <Node x={40} y={70} w={250} h={90} title={e.tickr} sub="PAIR ⇄ WALLET" color={C} />
-      <Node x={40} y={250} w={250} h={90} title={e.nft} sub="buy(id) · ROYALTY" color={M} />
+      <Node x={40} y={70} w={250} h={90} title={e.tickr} sub={tx("PAIR ⇄ WALLET")} color={C} />
+      <Node x={40} y={250} w={250} h={90} title={e.nft} sub={tx("3% sale fee")} color={M} />
       <Wire d="M290 115 H380 C430 115 430 170 480 170" color={C} dur={2.2} />
       <Packet path="M290 115 H380 C430 115 430 170 480 170" color={C} dur={2.2} delay={1.1} />
       <Wire d="M290 295 H380 C430 295 430 250 480 250" color={M} dur={2.6} delay={0.4} />
@@ -233,8 +234,8 @@ function Tall() {
   const e = t.engine;
   return (
     <svg className="tall" viewBox="0 0 360 772">
-      <Node x={4} y={8} w={164} h={70} title={e.tickr} sub="PAIR ⇄ WALLET" color={C} fs={12} />
-      <Node x={192} y={8} w={164} h={70} title={e.nft} sub="buy(id) · ROYALTY" color={M} fs={12} />
+      <Node x={4} y={8} w={164} h={70} title={e.tickr} sub={tx("PAIR ⇄ WALLET")} color={C} fs={12} />
+      <Node x={192} y={8} w={164} h={70} title={e.nft} sub={tx("3% sale fee")} color={M} fs={12} />
       <Wire d="M86 78 V100 C86 124 150 112 150 149" color={C} dur={1.8} />
       <Wire d="M274 78 V100 C274 124 210 112 210 149" color={M} dur={2.1} delay={0.4} />
       <text x="4" y="118" fill={C} fontSize="11">
@@ -299,16 +300,19 @@ export function Engine() {
 
 function Supply() {
   const drop = SUPPLY * DROP;
-  const lp = 1e9 - drop;
+  const referral=SUPPLY*REFERRAL_DROP;
+  const lp = 1e9 - drop-referral;
   const r = 100;
   const L = 2 * Math.PI * r;
   const a = (drop / 1e9) * L;
+  const b = (referral/1e9)*L;
   return (
     <div className="panel supply">
       <svg viewBox="-140 -140 280 280">
         <circle r={r} fill="none" stroke="rgba(255,255,255,.05)" strokeWidth="26" />
         <circle r={r} fill="none" stroke={Y} strokeWidth="26" strokeDasharray={`${a} ${L}`} transform="rotate(-90)" />
-        <circle r={r} fill="none" stroke={C} strokeWidth="26" strokeDasharray={`${L - a - 4} ${L}`} strokeDashoffset={-a - 2} transform="rotate(-90)" />
+        <circle r={r} fill="none" stroke={M} strokeWidth="26" strokeDasharray={`${b-2} ${L}`} strokeDashoffset={-a-1} transform="rotate(-90)" />
+        <circle r={r} fill="none" stroke={C} strokeWidth="26" strokeDasharray={`${L-a-b-4} ${L}`} strokeDashoffset={-a-b-2} transform="rotate(-90)" />
         {Array.from({ length: 60 }, (_, i) => (
           <line key={i} y1={-122} y2={i % 5 ? -126 : -132} stroke="rgba(255,255,255,.25)" transform={`rotate(${i * 6})`} />
         ))}
@@ -329,20 +333,21 @@ function Supply() {
               <i style={{ width: `${(drop / 1e9) * 100}%` }} />
             </div>
             <b>
-              {(drop / 1e6).toFixed(1)}M · {((drop / 1e9) * 100).toFixed(2)}%
+              {compact(drop)} · {pct(drop/1000,3)}
             </b>
           </div>
+          <div className="row" style={{ ["--k" as string]: M }}><span>{t.supply.referral}</span><div className="track"><i style={{width:`${referral/1e7}%`}}/></div><b>{compact(referral)} · {pct(referral/1000,3)}</b></div>
           <div className="row" style={{ ["--k" as string]: C }}>
             <span>{t.supply.lp}</span>
             <div className="track">
               <i style={{ width: `${(lp / 1e9) * 100}%` }} />
             </div>
             <b>
-              {(lp / 1e6).toFixed(1)}M · {((lp / 1e9) * 100).toFixed(2)}%
+              {compact(lp)} · {pct(lp/1000,3)}
             </b>
           </div>
           <div className="row" style={{ ["--k" as string]: M }}>
-            <span>FEE</span>
+            <span>{tx("Fee")}</span>
             <div className="track">
               <i style={{ width: "3%" }} />
             </div>

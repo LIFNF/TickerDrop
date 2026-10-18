@@ -2,29 +2,32 @@ import { Fragment, useState } from "react";
 import { addr, poolAbi } from "../chain/config";
 import { winners, type Round, type State, type Ticker } from "../lib/data";
 import { dayStr, eth, pct, tkn } from "../lib/format";
-import { t } from "../lib/copy";
+import { t,tx } from "../lib/copy";
 import { useWallet } from "../lib/wallet";
+import {ChainActivity} from "./ChainActivity";
 
 type Win = Awaited<ReturnType<typeof winners>>;
 
 export function Vault({ tickers, state }: { tickers: Ticker[]; state: State }) {
   const v = t.vault;
   const { account, send, connect } = useWallet();
+  const [loadError,setLoadError]=useState(false);
   const [open, setOpen] = useState<number>();
   const [wins, setWins] = useState<Record<number, Win>>({});
 
   const expand = (r: Round) => {
     setOpen((o) => (o === r.day ? undefined : r.day));
-    if (!wins[r.day]) winners(r).then((w) => setWins((all) => ({ ...all, [r.day]: w })));
+    if (!wins[r.day]) winners(r).then((w) => {setLoadError(false);setWins((all) => ({ ...all, [r.day]: w }));}).catch(()=>setLoadError(true));
   };
 
   const claim = () =>
-    send("CLAIM", (w, a) => w.writeContract({ account: a, chain: w.chain, address: addr.pool, abi: poolAbi, functionName: "claim" }));
+    send(v.claim, (w, a) => w.writeContract({ account: a, chain: w.chain, address: addr.pool, abi: poolAbi, functionName: "claim" }));
 
   const eligible = state.mine.length > 0 && state.tickr >= 10n ** 18n;
 
   return (
     <section className="mod" id="vault">
+      {loadError&&<p role="status">{tx("Records unavailable. Close and reopen this session to retry.")}</p>}
       <div className="sh">
         <span className="idx">05</span>
         <h2>{v.title}</h2>
@@ -47,10 +50,15 @@ export function Vault({ tickers, state }: { tickers: Ticker[]; state: State }) {
           <div className="fins" />
         </div>
       </div>
+      <div className="meters">
+        <div className="panel meter"><small>{tx("ETH added to locked liquidity")}</small><b>{state.liquidity.ready?eth(state.liquidity.addedETH):"—"}</b></div>
+        <div className="panel meter"><small>{tx("ETH awaiting liquidity")}</small><b>{state.liquidity.ready?eth(state.liquidity.pendingETH):"—"}</b></div>
+        <div className="panel meter"><small>{tx("TICKR held in liquidity vault")}</small><b>{state.liquidity.ready?tkn(state.liquidity.heldTICKR):"—"}</b></div>
+      </div>
 
       <div className="two">
         <div className="panel">
-          <h3>SETTLEMENTS</h3>
+          <h3>{tx("Settlements")}</h3>
           {state.rounds.length === 0 ? (
             <div className="emptyrow">{v.empty}</div>
           ) : (
@@ -115,20 +123,22 @@ export function Vault({ tickers, state }: { tickers: Ticker[]; state: State }) {
                 <b>{tkn(state.tickr)}</b>
               </div>
               <div className="kv">
-                <span>STATUS</span>
-                <b className={eligible ? "ok" : "no"}>{eligible ? v.ok : v.no}</b>
+                <span>{tx("Current holdings")}</span>
+                <b className={eligible ? "ok" : "no"}>{eligible ? tx("Minimum met") : tx("Below minimum")}</b>
               </div>
               <div className="kv">
                 <span>{v.credit}</span>
                 <b>{eth(state.credit, 6)}</b>
               </div>
-              <button className="btn" disabled={state.credit === 0n} onClick={claim}>
+              <button className="btn" disabled={!state.ready || state.credit === 0n} onClick={claim}>
                 {v.claim}
               </button>
+              <small>{tx("Payout eligibility is fixed at the session snapshot and depends on the NFT's stock performance.")}</small>
             </div>
           )}
         </div>
       </div>
+      <ChainActivity kind="pool"/>
     </section>
   );
 }

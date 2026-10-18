@@ -1,180 +1,23 @@
-export const t = {
-  nav: { engine: "Engine", cutoff: "Cutoff", mint: "Mint", book: "Book", vault: "Vault" },
-  connect: "Connect",
-  wrongChain: "Switch network",
-  offline: "Contracts offline",
-
-  hero: {
-    kicker: "NASDAQ × ROBINHOOD CHAIN",
-    line1: "Each NFT is one Nasdaq company.",
-    line2: "When yours closes among the day's top gainers, you get paid from a pool fed by 3% of every trade.",
-    stats: [
-      ["3172", "cards, id = market cap rank"],
-      ["3%", "on every Tickr and NFT trade"],
-      ["09:30", "next open settles the last close"],
-      ["100%", "cumulative gain cap"],
-    ],
-  },
-
-  engine: {
-    title: "Fee engine",
-    lead: "Two trade streams. One pool. One settlement clock.",
-    tickr: "TICKR BUY / SELL",
-    nft: "NFT SALE",
-    inTkn: "3% · TICKR",
-    inEth: "3% · ETH",
-    clock: "09:30 NY",
-    board: "Last close gainers",
-    holder: "Holder",
-    hold: "≥ 1 TICKR",
-    roll: "Rolls to next session",
-    points: [
-      ["Two assets", "Tickr fees pay out in Tickr, NFT fees in ETH. One card, two income streams."],
-      ["No discretion", "Ordering, cutoff, pro rata, eligibility and rollover live in the contract. A settlement call can't bend them."],
-      ["Clock", "Intraday moves don't count. A session is scored on its final close and paid at the next 09:30 open. Weekends and holidays settle nothing; fees keep stacking into the next payout."],
-    ],
-  },
-
-  supply: {
-    title: "TICKR",
-    total: "1,000,000,000 supply · fully circulating · no mint function",
-    drop: "Mint drop",
-    lp: "Liquidity",
-    tax: "3% on pair buys and sells",
-  },
-
-  cutoff: {
-    title: "The cutoff",
-    lead: "Stack the day's gainers from the top. Stop at 100%. Each takes a slice of the pool equal to its own gain.",
-    tabs: ["Σ gain > 100%", "Σ gain < 100%", "No gainers", "Random session"],
-    gain: "Day gain",
-    cum: "Cumulative weight",
-    share: "Pool share",
-    out: "out",
-    clip: "clipped",
-    capAt: (s: string, x: string, k: number) => `Cap hit at ${s}: it takes the remaining ${x}. The ${k} gainers below it get nothing.`,
-    under: (sum: string) => `All positive movers add up to ${sum}, under 100%: they split the entire pool pro rata.`,
-    none: "Nothing closed green. No payout. The whole pool rolls into the next session.",
-    rules: [
-      ["Eligibility", "Hold the card for that listing and ≥ 1 TICKR in the same wallet, checked at the open that settles it."],
-      ["Order", "Day gain, descending. Ties go to the lower id."],
-      ["Cutoff", "Stop the moment cumulative weight reaches 100%. The one that crosses takes the remainder."],
-      ["Pro rata", "If every positive gain together is under 100%, they split the whole pool by gain."],
-      ["Excluded", "Flat and red closes get nothing."],
-      ["Rollover", "Unminted slots, holders under 1 TICKR, sessions with no gainers, weekends and holidays all roll into the next settlement."],
-    ],
-  },
-
-  mint: {
-    title: "Mint",
-    lead: "One listing, one card, one wallet.",
-    tiers: [
-      ["#1 – #100", "0.005 ETH", "Nasdaq top 100 by market cap"],
-      ["#101 – #3172", "0.001 ETH", "Everything else"],
-      ["Each", "+100,000", "TICKR lands with the card"],
-    ],
-    route: "Mint contract",
-    tba: "TBA",
-    wl: "Whitelist mints at 0 ETH",
-    search: "Search ticker / company",
-    filters: ["All", "Top 100", "Available", "Minted"],
-    picked: "Picked",
-    total: "Total",
-    clear: "Clear",
-    go: "Mint",
-    max: "Max 100 per tx",
-    phase: ["Not open", "Live", "Closed"],
-    minted: "Minted",
-    you: "Yours",
-  },
-
-  book: {
-    title: "Order book",
-    lead: "Matching is built into the contract. 3% of every fill goes to the pool. Asks die the moment a card moves.",
-    cols: ["Id", "Ticker", "Price", "Seller", ""],
-    buy: "Buy",
-    empty: "No asks",
-    mine: "My cards",
-    none: "No cards in this wallet",
-    price: "Price ETH",
-    list: "List",
-    unlist: "Cancel",
-    yours: "Your ask",
-  },
-
-  vault: {
-    title: "Vault",
-    potEth: "ETH in pool",
-    potTkn: "TICKR in pool",
-    rounds: "Sessions settled",
-    cols: ["Date", "Gainers in", "Paid", "Weight", "ETH", "TICKR"],
-    empty: "No session settled yet",
-    me: "You",
-    cards: "Cards",
-    bal: "TICKR balance",
-    ok: "Eligible",
-    no: "Not eligible",
-    credit: "ETH to claim",
-    claim: "Claim",
-    winners: "Paid",
-    connect: "Connect to see your cards and payouts",
-  },
-
-  foot: { contracts: "Contracts", chain: "Network", source: "Source" },
-
-  space: {
-    enter: "Enter the map",
-    hint: ["Drag to move", "Scroll to zoom", "Click any node or star"],
-    touch: ["Drag", "Pinch", "Tap"],
-    find: "Find ticker",
-    home: "Overview",
-    fit: "Fit",
-    pins: {
-      core: "GAINPOOL",
-      tickr: "TICKR",
-      nft: "NFT BOOK",
-      mint: "MINT",
-      clock: "CLOCK",
-      board: "LAST CLOSE",
-      holder: "HOLDER",
-    },
-    core: { sub: "3% of every trade lands here", next: "Next payout", eth: "ETH", tkn: "TICKR", rounds: "sessions settled" },
-    tickr: { sub: "1,000,000,000 · fully circulating", fee: "3% on pair buys and sells", drop: "mint drop", lp: "liquidity" },
-    nft: { sub: "Matching lives in the contract", fee: "3% of every fill · 3% royalty", asks: "asks", floor: "floor" },
-    mint: { sub: "One listing, one card, one wallet" },
-    clock: {
-      rows: [
-        ["16:00", "Final close recorded"],
-        ["09:30", "Next open pays it"],
-        ["SAT · SUN", "Nothing settles, the pool stacks"],
-      ],
-      in: "opens in",
-    },
-    board: { wait: "First recorded close lands after 16:00 New York.", green: "green", red: "red / flat", sum: "Σ weight" },
-    holder: { sub: "Card + ≥ 1 TICKR in one wallet", gets: "takes ETH + TICKR", connect: "Connect to see your cards", cards: "cards", ok: "eligible", no: "not eligible", claim: "to claim" },
-    tk: {
-      cap: "Market cap",
-      price: "Mint price",
-      drop: "Drop",
-      status: "Status",
-      free: "Unminted",
-      taken: "Minted",
-      yours: "Yours",
-      listed: "Listed",
-      last: "Last close",
-      none: "No print",
-      paid: "Paid",
-      share: "Pool share",
-      weight: "Weight",
-      clipped: "clipped at the 100% line",
-      out: "Below the 100% line",
-      red: "Flat or red: out",
-      rank: "Rank of the day",
-      history: "Recorded closes",
-      near: "Neighbours by market cap",
-      peers: "Paid with it",
-      mint: "Mint this card",
-      buy: "Buy",
-    },
-  },
-};
+import {t as english} from "./copy.en";
+import {tx} from "./translate";
+export {tx} from "./translate";
+// Module-level references remain current without remounting wallet providers.
+function localized<T extends object>(source:T):T{
+ const children=new Map<PropertyKey,object>();
+ return new Proxy(source,{get(target,key,receiver){
+  const value=Reflect.get(target,key,receiver);
+  if(typeof value==="string")return tx(value);
+  if(Array.isArray(value))return value.map(item=>translateValue(item));
+  if(value&&typeof value==="object"){
+   if(!children.has(key))children.set(key,localized(value));
+   return children.get(key);
+  }
+  return value;
+ }});
+}
+function translateValue(value:unknown):unknown{
+ if(typeof value==="string")return tx(value);
+ if(Array.isArray(value))return value.map(translateValue);
+ return value;
+}
+export const t=localized(english);

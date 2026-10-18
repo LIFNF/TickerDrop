@@ -1,14 +1,17 @@
 // Records the session's final % change per slot, right after the 16:00 close.
 // Output: data/sessions/YYYY-MM-DD.json, settled at the next open by settle.mjs.
 
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { gainsById } from "./round.mjs";
-import { log, nasdaq, nyNow, sessionsDir, tickers } from "./lib.mjs";
+import { existsSync, mkdirSync } from "node:fs";
+import {readSnapshot,writeSnapshot} from "./storage.mjs";
+import { gainsById, pricesById } from "./round.mjs";
+import { validateQuoteSession, sessionSchedule } from "./calendar.mjs";
+import {safeError} from "./safe-error.mjs";
+import { isoOf, log, nasdaq, nyNow, sessionsDir, tickers } from "./lib.mjs";
 
 async function main() {
   const now = nyNow();
   const file = new URL(`${now.date}.json`, sessionsDir);
-  if (existsSync(file)) return log(`${now.date} already recorded`);
+  if (existsSync(file)){readSnapshot(file,now.date,tickers);return log(`${now.date} already recorded and validated`);}
 
   const info = await nasdaq("market-info");
   const closeDate = info.closeRaw?.slice(0, 10);
@@ -28,15 +31,18 @@ async function main() {
   if (rows.length < 2000) throw new Error(`screener returned ${rows.length} rows`);
 
   const gains = gainsById(rows, tickers);
+  const prices = pricesById(rows, tickers);
   const printed = gains.filter((g) => g !== null).length;
-  if (printed < tickers.length * 0.9) throw new Error(`only ${printed}/${tickers.length} slots printed`);
+  validateQuoteSession({date:now.date,gains},tickers);
+  const nextOpen = `${isoOf(info.nextTradeDate)}T09:30:00`;
+  sessionSchedule({date:now.date,open:info.openRaw,close:info.closeRaw,nextOpen},{},now.date);
 
   mkdirSync(sessionsDir, { recursive: true });
-  writeFileSync(file, JSON.stringify({ date: now.date, close: info.closeRaw, takenAt: new Date().toISOString(), probe: stamp, gains }) + "\n");
+  writeSnapshot(file,{ date: now.date, open: info.openRaw, close: info.closeRaw, nextOpen, takenAt: new Date().toISOString(), probe: stamp, source: "Nasdaq screener API", status:"provisional", prices, gains },tickers);
   log(`${now.date} recorded, ${printed} slots, ${gains.filter((g) => g > 0).length} green`);
 }
 
 main().catch((e) => {
-  console.error(e);
+  console.error(safeError(e));
   process.exit(1);
 });

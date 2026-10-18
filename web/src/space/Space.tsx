@@ -119,9 +119,10 @@ export function Space({ cam, paint, focus, onTap, onMove, children }: Props) {
       const g = n.gains?.[s.id - 1];
       tp.hidden = false;
       tp.style.transform = `translate(${Math.min(p.x + 16, el.clientWidth - 220)}px, ${p.y + 16}px)`;
-      tp.innerHTML = "";
+      tp.replaceChildren();
       const head = document.createElement("div");
-      head.innerHTML = `<span>#${s.id}</span> <b></b> <em></em>`;
+      const number=document.createElement("span"); number.textContent=`#${s.id}`;
+      head.append(number,document.createElement("b"),document.createElement("em"));
       head.querySelector("b")!.textContent = tk?.s ?? "";
       const em = head.querySelector("em")!;
       if (g !== undefined && g !== null) {

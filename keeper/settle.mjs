@@ -1,18 +1,22 @@
 // Runs at the New York open. Settles every recorded session the chain hasn't settled yet,
 // oldest first, using the final close captured by snapshot.mjs.
 //
-//   REPORTER_KEY  private key of the reporter set on GainPool
+//   RELAYER_KEY   gas-paying transaction sender; cannot choose results alone
+//   data/attestations/YYYY-MM-DD.json must contain independent quorum signatures
 //   RPC_URL       optional, defaults to the public Robinhood Chain endpoint
 //   DRY=1         print the rounds without sending
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { createWalletClient, http } from "viem";
+import { createWalletClient, http, encodeAbiParameters, keccak256, stringToHex, isHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { buildRound } from "./round.mjs";
-import { chain, dateOf, dayOf, deployed, isLive, isoOf, log, nasdaq, nyNow, poolAbi, pub, sessionsDir, sleep, tickers } from "./lib.mjs";
+import {safeError} from "./safe-error.mjs";
+import { nyTimestamp, sessionSchedule, validateQuoteSession } from "./calendar.mjs";
+import { marketOracleAbi, chain, dateOf, dayOf, deployed, isLive, isoOf, log, nasdaq, nyNow, poolAbi, pub, sessionsDir, sleep, tickers } from "./lib.mjs";
 
 async function main() {
-  if (!isLive()) return log("not deployed yet");
+  if (!isLive()) throw new Error("Deployment configuration is missing; settlement is not operational");
+  if(await pub.getChainId()!==chain.id)throw new Error("RPC network does not match deployment; refusing settlement");
 
   const now = nyNow();
   const info = await nasdaq("market-info");
@@ -20,54 +24,96 @@ async function main() {
   if (now.minutes < 9 * 60 + 30) return log(`${now.date} not open yet`);
 
   const prev = isoOf(info.previousTradeDate);
+  const launchAt = Number(await pub.readContract({address:deployed.tickr,abi:[{type:"function",name:"liveAt",stateMutability:"view",inputs:[],outputs:[{type:"uint64"}]}],functionName:"liveAt"}));
+  if (!launchAt) return log("trading has not launched");
   const lastDay = Number(await pub.readContract({ address: deployed.pool, abi: poolAbi, functionName: "lastDay" }));
 
   const pending = (existsSync(sessionsDir) ? readdirSync(sessionsDir) : [])
     .filter((f) => /^\d{4}-\d{2}-\d{2}\.json$/.test(f))
     .map((f) => f.slice(0, 10))
-    .filter((d) => dayOf(d) > lastDay && d <= prev)
+    .filter((d) => dayOf(d) > lastDay && d <= prev && nyTimestamp(d,570) >= launchAt)
     .sort();
 
   if (pending.length === 0) {
-    if (dayOf(prev) > lastDay) throw new Error(`no recorded close for ${prev}`);
+    if (dayOf(prev) > lastDay && nyTimestamp(prev,570) >= launchAt) throw new Error(`no recorded close for ${prev}`);
     return log(`nothing to settle (last ${dateOf(lastDay)})`);
   }
 
-  const key = process.env.REPORTER_KEY;
+  const oracle = await pub.readContract({address:deployed.pool, abi:poolAbi, functionName:"marketOracle"});
+  if (/^0x0+$/.test(oracle)) throw new Error("Quote quorum is not configured; settlement blocked");
+  const key = process.env.RELAYER_KEY;
   const dry = process.env.DRY === "1";
-  if (!key && !dry) throw new Error("REPORTER_KEY missing");
+  if (!key && !dry) throw new Error("RELAYER_KEY missing");
   const account = key ? privateKeyToAccount(key.startsWith("0x") ? key : `0x${key}`) : undefined;
   const wallet = account && createWalletClient({ account, chain, transport: http() });
 
   for (const date of pending) {
     const day = dayOf(date);
-    const at = Number(await pub.readContract({ address: deployed.pool, abi: poolAbi, functionName: "settleableAt", args: [day] }));
-    if (at === 0) {
-      log(`${date} predates launch, skipped`);
-      continue;
-    }
+    let at = Number(await pub.readContract({ address: deployed.pool, abi: poolAbi, functionName: "settleableAt", args: [day] }));
     const wait = at * 1000 - Date.now() + 5000;
     if (wait > 10 * 60_000) return log(`${date} opens for settlement at ${new Date(at * 1000).toISOString()}`);
     if (wait > 0) await sleep(wait);
 
-    const { gains } = JSON.parse(readFileSync(new URL(`${date}.json`, sessionsDir)));
+    const sessionText = readFileSync(new URL(`${date}.json`, sessionsDir), "utf8");
+    const record = JSON.parse(sessionText);
+    validateQuoteSession(record,tickers);
+    const { gains } = record;
     const { picked, positive, weight } = buildRound(gains, tickers);
     log(`${date} day=${day} green=${positive} paying=${picked.length} weight=${(weight / 1e4).toFixed(4)}%`);
     for (const p of picked) log(`  #${p.id} ${p.s.padEnd(5)} +${(p.g / 1e4).toFixed(4)}%`);
+    let [expected] = await pub.readContract({address:oracle,abi:marketOracleAbi,functionName:"session",args:[day]});
+    const digest = keccak256(encodeAbiParameters(
+      [{type:"uint256"},{type:"address"},{type:"uint32"},{type:"uint16[]"},{type:"uint32[]"}],
+      [BigInt(chain.id),deployed.pool,day,picked.map(p=>p.id),picked.map(p=>p.g)]
+    ));
+    if (/^0x0+$/.test(expected)) {
+      const {openedAt,closedAt,nextOpen} = sessionSchedule(record,info,now.date);
+      const attestationFile = new URL(`../data/attestations/${date}.json`, import.meta.url);
+      if (!existsSync(attestationFile)) throw new Error(`${date}: independent quote attestations missing`);
+      const attestations = JSON.parse(readFileSync(attestationFile,"utf8"));
+      const quotesHash = keccak256(stringToHex(sessionText));
+      if (attestations.day !== day || attestations.quotesHash !== quotesHash || !Array.isArray(attestations.signatures))
+        throw new Error(`${date}: attestations do not match the recorded quotes`);
+      const signatures = attestations.signatures
+        .filter(x=>typeof x.signer==="string" && isHex(x.signature) && x.signature.length===132)
+        .sort((a,b)=>a.signer.toLowerCase().localeCompare(b.signer.toLowerCase()));
+      const threshold = Number(await pub.readContract({address:oracle,abi:marketOracleAbi,functionName:"threshold"}));
+      if (signatures.length < threshold || new Set(signatures.map(x=>x.signer.toLowerCase())).size!==signatures.length)
+        throw new Error(`${date}: independent signature quorum missing`);
+      for (const x of signatures) if (!await pub.readContract({address:oracle,abi:marketOracleAbi,functionName:"isSigner",args:[x.signer]}))
+        throw new Error(`${date}: unrecognized quote signer`);
+      if (dry) { log(`${date}: quote signatures ready; publication and settlement not sent`); continue; }
+      const {request}=await pub.simulateContract({account,address:oracle,abi:marketOracleAbi,functionName:"publish",args:[day,picked.map(p=>p.id),picked.map(p=>p.g),BigInt(openedAt),BigInt(closedAt),BigInt(nextOpen),quotesHash,signatures.map(x=>x.signature)]});
+      const hash = await wallet.writeContract(request);
+      const receipt = await pub.waitForTransactionReceipt({hash});
+      if (receipt.status !== "success") throw new Error("Quorum quote publication reverted");
+      [expected] = await pub.readContract({address:oracle,abi:marketOracleAbi,functionName:"session",args:[day]});
+      at = nextOpen;
+    }
+    if (expected !== digest) throw new Error(`${date}: local results do not match quorum quote commitment; refusing settlement`);
     if (dry) continue;
 
-    const args = [day, picked.map((p) => p.id), picked.map((p) => p.g)];
-    const { request } = await pub.simulateContract({ account, address: deployed.pool, abi: poolAbi, functionName: "settle", args });
-    const hash = await wallet.writeContract(request);
-    const rc = await pub.waitForTransactionReceipt({ hash });
-    if (rc.status !== "success") throw new Error(`${date}: settle reverted (${hash})`);
-    log(`${date} settled ${hash}, gas ${rc.gasUsed}`);
+    const ids = picked.map(p=>p.id), units = picked.map(p=>p.g);
+    let active = await pub.readContract({address:deployed.pool,abi:poolAbi,functionName:"pendingDay"});
+    if (active !== 0 && active !== day) throw new Error(`Earlier round ${active} must finish first`);
+    let batches = 0;
+    do {
+      const functionName = active === 0 ? "settle" : "continueSettlement";
+      const args = active === 0 ? [day,ids,units] : [ids,units];
+      const {request} = await pub.simulateContract({account,address:deployed.pool,abi:poolAbi,functionName,args});
+      const hash = await wallet.writeContract(request);
+      const receipt = await pub.waitForTransactionReceipt({hash});
+      if (receipt.status !== "success") throw new Error(`${date}: ${functionName} reverted (${hash})`);
+      log(`${date} ${functionName} ${hash}, gas ${receipt.gasUsed}`);
+      active = await pub.readContract({address:deployed.pool,abi:poolAbi,functionName:"pendingDay"});
+      if (++batches > Math.ceil(tickers.length/64)+1) throw new Error("Settlement made no bounded progress");
+    } while(active !== 0);
   }
 
-  if (dayOf(prev) > lastDay && !pending.includes(prev)) throw new Error(`no recorded close for ${prev}`);
+  if (dayOf(prev) > lastDay && nyTimestamp(prev,570) >= launchAt && !pending.includes(prev)) throw new Error(`no recorded close for ${prev}`);
 }
 
 main().catch((e) => {
-  console.error('Settlement failed. Inspect protected operator diagnostics; raw provider errors are suppressed.');
+  console.error(safeError(e));
   process.exit(1);
 });

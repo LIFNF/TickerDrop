@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { DROP, live, SUPPLY, TOP } from "../chain/config";
+import { DROP, live, SUPPLY, TOP,REFERRAL_DROP } from "../chain/config";
 import { hms, nextOpen } from "../lib/clock";
-import { t } from "../lib/copy";
+import { t,tx } from "../lib/copy";
 import type { State, Ticker } from "../lib/data";
 import { eth, tkn } from "../lib/format";
 import { gainPct, type Board } from "../lib/session";
@@ -45,7 +45,7 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
             <b>{live ? tkn(state.pot.tkn) : "—"}</b>
           </div>
         </div>
-        <div className="next">
+        <div className="next" title={tx("Market holidays are not included in this countdown. Settlement follows the oracle's confirmed session calendar.")}>
           {sp.core.next} · 09:30 NY · <Countdown />
         </div>
       </>
@@ -57,7 +57,7 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
           <b className="big">TICKR</b>
           <span>{sp.tickr.fee}</span>
           <span className="dim">
-            {(drop * 100).toFixed(2)}% {sp.tickr.drop} · {((1 - drop) * 100).toFixed(2)}% {sp.tickr.lp}
+            {(drop * 100).toFixed(2)}% {sp.tickr.drop} · {(SUPPLY*REFERRAL_DROP/1e7).toFixed(3)}% {sp.tickr.referral} · {((1-drop-SUPPLY*REFERRAL_DROP/1e9)*100).toFixed(3)}% {sp.tickr.lp}
           </span>
         </div>
       </>
@@ -66,7 +66,7 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
       <>
         <Gpu tone="red" />
         <div className="rigcap">
-          <b className="big">NFT BOOK</b>
+          <b className="big">{sp.pins.nft}</b>
           <span>{sp.nft.fee}</span>
           <span className="dim">
             {state.book.length} {sp.nft.asks} · {sp.nft.floor} {floor === undefined ? "—" : `${eth(floor, 5)} ETH`}
@@ -77,7 +77,7 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
     mint: (
       <>
         <div className="row">
-          <b className="big">MINT</b>
+          <b className="big">{sp.pins.mint}</b>
           <span className="chip" style={{ color: live && state.phase === 1 ? "var(--g)" : "var(--m)" }}>
             {t.mint.phase[live ? state.phase : 0]}
           </span>
@@ -95,7 +95,7 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
           <i style={{ width: `${(state.minted / SUPPLY) * 100}%` }} />
         </div>
         <span className="mono dim">
-          {state.minted} / {SUPPLY} · #1–#{TOP} first
+          {state.minted} / {SUPPLY} · #1–#{TOP}
         </span>
       </>
     ),
@@ -125,7 +125,7 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
       <>
         <div className="row">
           <b className="big">{board.date}</b>
-          <span className="mono dim">16:00 NY</span>
+          <span className="mono dim">{tx("On-chain verified")}</span>
         </div>
         <ol className="picks">
           {board.picks.slice(0, 7).map((p) => (
@@ -155,12 +155,12 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
     ) : (
       <>
         <b className="big">—</b>
-        <p className="line dim">{sp.board.wait}</p>
+        <p className="line dim">{tx("No verified market report. Settlement is pending.")}</p>
       </>
     ),
     holder: (
       <>
-        <b className="big">HOLDER</b>
+        <b className="big">{sp.pins.holder}</b>
         <small>{sp.holder.sub}</small>
         <p className="line">
           <i className="dot y" />
@@ -173,7 +173,7 @@ export function Nodes({ tickers, state, board, focus, onOpen }: Props) {
               <span>{sp.holder.cards}</span>
             </div>
             <div>
-              <b className={eligible ? "ok" : "no"}>{eligible ? sp.holder.ok : sp.holder.no}</b>
+              <b className={eligible ? "ok" : "no"}>{eligible ? tx("Minimum met") : tx("Below minimum")}</b>
               <span>{eth(state.credit, 5)} ETH {sp.holder.claim}</span>
             </div>
           </div>

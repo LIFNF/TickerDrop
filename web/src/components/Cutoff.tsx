@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { t } from "../lib/copy";
+import { t,tx } from "../lib/copy";
 import type { Ticker } from "../lib/data";
+import {numberLocale} from "../lib/locale";
 
 type Mv = { s: string; g: number };
 
@@ -72,7 +73,7 @@ function solve(list: Mv[]) {
   return { rows: rows.map((r) => ({ ...r, share: total ? (r.w / total) * 100 : 0 })), total, sumPos };
 }
 
-const f = (n: number, d = 2) => n.toFixed(d).replace(/\.?0+$/, "") + "%";
+const f = (n: number, d = 2) => n.toLocaleString(numberLocale(),{maximumFractionDigits:d}) + "%";
 
 type Bar = Mv & { w: number; cum: number; share: number; neg: boolean };
 
@@ -140,7 +141,7 @@ function Rows({ bars, total }: { bars: Bar[]; total: number }) {
       <rect y={tankY} width="360" height="40" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.2)" />
       {total === 0 && (
         <text x="180" y={tankY + 25} textAnchor="middle" fill="#ff2bd6" fontSize="12" letterSpacing="3">
-          ROLLOVER →
+          {tx("ROLLOVER →")}
         </text>
       )}
       {bars
@@ -168,7 +169,7 @@ function Rows({ bars, total }: { bars: Bar[]; total: number }) {
         })}
       {total > 0 && total < 100 && (
         <text x="360" y={tankY + 60} textAnchor="end" fill="#8a8ea3" fontSize="10">
-          ×{(100 / total).toFixed(2)} pro rata
+          ×{(100 / total).toFixed(2)} {tx("pro rata")}
         </text>
       )}
     </svg>
@@ -315,7 +316,7 @@ export function Cutoff({ tickers }: { tickers: Ticker[] }) {
           <rect x={X0} y={tankY} width={X1 - X0} height="46" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.2)" />
           {total === 0 && (
             <text x={(X0 + X1) / 2} y={tankY + 29} textAnchor="middle" fill="#ff2bd6" fontSize="13" letterSpacing="4">
-              ROLLOVER →
+              {tx("ROLLOVER →")}
             </text>
           )}
           {bars
@@ -344,7 +345,7 @@ export function Cutoff({ tickers }: { tickers: Ticker[] }) {
             })}
           {paid.length > 0 && total < 100 && (
             <text x={X1} y={tankY + 66} textAnchor="end" fill="#8a8ea3" fontSize="11">
-              ×{(100 / total).toFixed(2)} pro rata
+              ×{(100 / total).toFixed(2)} {tx("pro rata")}
             </text>
           )}
         </svg>
@@ -360,7 +361,7 @@ export function Cutoff({ tickers }: { tickers: Ticker[] }) {
           <sub>j</sub> )
         </span>
         <span className="eq">
-          share<sub>i</sub> ={" "}
+          {tx("Allocation")}<sub>i</sub> ={" "}
           <span className="frac">
             <span>
               <var>w</var>
@@ -370,10 +371,10 @@ export function Cutoff({ tickers }: { tickers: Ticker[] }) {
               Σ <var>w</var>
             </span>
           </span>{" "}
-          × POOL
+          × {tx("POOL")}
         </span>
         <span className="eq" style={{ color: "var(--dim)", fontSize: 13 }}>
-          g ≤ 0 → 0 · Σw = 0 → rollover
+          g ≤ 0 → 0 · Σw = 0 → {tx("rollover")}
         </span>
       </div>
 

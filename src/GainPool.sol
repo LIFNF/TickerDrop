@@ -6,7 +6,11 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+import {IMarketOracle} from "./IMarketOracle.sol";
+import {RoundValidation} from "./RoundValidation.sol";
+
 interface ITickr {
+    function balanceAt(address account, uint48 timestamp) external view returns (uint256);
     function liveAt() external view returns (uint64);
 }
 
@@ -15,12 +19,13 @@ interface IArbSys {
 }
 
 interface IDrop {
+    function holderAt(uint256 id, uint48 timestamp) external view returns (address);
     function supply() external view returns (uint256);
     function holderOf(uint256 id) external view returns (address);
 }
 
 /// @title GainPool
-/// @notice Collects the 3% from Tickr pairs (Tickr) and from the NFT book / royalties (ETH),
+/// @notice Collects the 3% from ordinary Tickr transfers (Tickr) and NFT book fills (ETH),
 ///         then pays it out to the holders of each session's top gainers. A session is settled
 ///         on its final close, no earlier than 09:30 New York on the next weekday; fees keep
 ///         stacking until then, so weekends and holidays roll into the next settlement.
@@ -41,7 +46,10 @@ contract GainPool is Ownable, ReentrancyGuard {
 
     IERC20 public immutable tickr;
     IDrop public drop;
-    address public reporter;
+    address public immutable reporter;
+    IMarketOracle public marketOracle;
+    error UnverifiedMarketData();
+    event MarketOracleBound(address oracle);
 
     uint32 public lastDay;
     uint256 public owed;
@@ -58,6 +66,33 @@ contract GainPool is Ownable, ReentrancyGuard {
     }
 
     Round[] public rounds;
+    uint256 public constant PAYOUT_BATCH = 64;
+
+    struct Pending {
+        uint32 day;
+        uint32 total;
+        uint16 count;
+        uint16 cursor;
+        uint16 paid;
+        uint64 snapshotAt;
+        uint64 startBlock;
+        uint256 ethPot;
+        uint256 tknPot;
+        uint256 ethOut;
+        uint256 tknOut;
+        bytes32 commitment;
+    }
+    Pending private _pending;
+    mapping(uint256 => uint64) public roundStartBlock;
+    event SettlementProgress(uint32 indexed day, uint256 processed, uint256 count);
+
+    function pendingDay() external view returns (uint32) {
+        return _pending.day;
+    }
+
+    function pendingCursor() external view returns (uint16) {
+        return _pending.cursor;
+    }
 
     event Bound(address drop);
     event ReporterSet(address reporter);
@@ -78,95 +113,121 @@ contract GainPool is Ownable, ReentrancyGuard {
     error PayFailed();
 
     constructor(IERC20 tickr_, address reporter_) Ownable(msg.sender) {
+        require(address(tickr_).code.length > 0 && reporter_ != address(0), "Invalid token/publisher");
         tickr = tickr_;
         reporter = reporter_;
         emit ReporterSet(reporter_);
     }
 
-    receive() external payable {}
+    event ETHFunded(address indexed source, uint256 amount);
+    receive() external payable { emit ETHFunded(msg.sender, msg.value); }
 
     function bind(IDrop drop_) external onlyOwner {
         if (address(drop) != address(0)) revert Locked();
+        require(
+            address(drop_).code.length > 0 && drop_.supply() > 0 && drop_.supply() <= type(uint16).max,
+            "Invalid NFT contract"
+        );
         drop = drop_;
         emit Bound(address(drop_));
     }
 
-    function setReporter(address reporter_) external onlyOwner {
-        reporter = reporter_;
-        emit ReporterSet(reporter_);
+    function bindMarketOracle(IMarketOracle oracle) external onlyOwner {
+        if (address(marketOracle) != address(0) || ITickr(address(tickr)).liveAt() != 0) revert Locked();
+        if (address(drop) == address(0)) revert Locked();
+        if (address(oracle).code.length == 0) revert UnverifiedMarketData();
+        marketOracle = oracle;
+        emit MarketOracleBound(address(oracle));
+        _transferOwnership(address(0));
     }
 
     /// @param day    session date as days since 1970-01-01 (New York calendar date)
     /// @param ids    slot ids of positive movers, by gain desc then id asc
     /// @param gains  % change in units of 0.0001% (12.5% = 125000), all > 0
     function settle(uint32 day, uint16[] calldata ids, uint32[] calldata gains) external nonReentrant {
-        if (msg.sender != reporter) revert NotReporter();
+        if (_pending.day != 0) revert Locked();
+        // Anyone may relay data; only the immutable oracle commitment authorizes it.
+        if (address(marketOracle) == address(0)) revert UnverifiedMarketData();
         _checkDay(day);
+        (bytes32 commitment,,, uint64 snapshotAt) = marketOracle.session(day);
+        if (
+            commitment == bytes32(0)
+                || commitment != keccak256(abi.encode(block.chainid, address(this), day, ids, gains))
+        ) revert UnverifiedMarketData();
         uint256 n = ids.length;
-        if (gains.length != n) revert BadInput();
-        lastDay = day;
+        uint32 total = RoundValidation.validate(ids, gains, drop.supply());
+        _pending = Pending({
+            day: day,
+            total: uint32(total),
+            count: uint16(n),
+            cursor: 0,
+            paid: 0,
+            snapshotAt: snapshotAt,
+            startBlock: uint64(_blockNo()),
+            ethPot: address(this).balance - owed,
+            tknPot: tickr.balanceOf(address(this)),
+            ethOut: 0,
+            tknOut: 0,
+            commitment: commitment
+        });
+        _payBatch(ids, gains);
+    }
 
-        uint256 supply = drop.supply();
-        uint256[] memory seen = new uint256[]((supply >> 8) + 1);
-        uint256[] memory w = new uint256[](n);
-        address[] memory to = new address[](n);
-        uint256 total;
+    /// @notice Continue the same committed round, at most 64 slots per transaction.
+    function continueSettlement(uint16[] calldata ids, uint32[] calldata gains) external nonReentrant {
+        Pending storage p = _pending;
+        if (p.day == 0 || p.commitment != keccak256(abi.encode(block.chainid, address(this), p.day, ids, gains))) {
+            revert BadInput();
+        }
+        _payBatch(ids, gains);
+    }
 
-        // pass 1: validate, weigh, and lock eligibility before anything moves
-        for (uint256 i; i < n; ++i) {
-            uint256 id = ids[i];
-            uint256 g = gains[i];
-            if (id == 0 || id > supply) revert BadId(id);
-            if (g == 0) revert BadInput();
-            if (i != 0) {
-                uint256 pg = gains[i - 1];
-                if (g > pg || (g == pg && id <= ids[i - 1])) revert BadOrder(i);
+    function _payBatch(uint16[] calldata ids, uint32[] calldata gains) private {
+        Pending storage p = _pending;
+        uint256 end = uint256(p.cursor) + PAYOUT_BATCH;
+        if (end > p.count) end = p.count;
+        uint256 used;
+        for (uint256 i; i < p.cursor; ++i) {
+            uint256 weight = gains[i];
+            if (weight > FULL - used) weight = FULL - used;
+            used += weight;
+        }
+        for (uint256 i = p.cursor; i < end; ++i) {
+            uint256 weight = gains[i];
+            if (weight > FULL - used) weight = FULL - used;
+            used += weight;
+            address holder = drop.holderAt(ids[i], uint48(p.snapshotAt - 1));
+            if (holder == address(0) || ITickr(address(tickr)).balanceAt(holder, uint48(p.snapshotAt - 1)) < MIN_HOLD) {
+                continue;
             }
-            uint256 bit = 1 << (id & 0xff);
-            if (seen[id >> 8] & bit != 0) revert BadId(id);
-            seen[id >> 8] |= bit;
-
-            if (total >= FULL) revert PastCap(i);
-            if (g > FULL - total) g = FULL - total;
-            w[i] = g;
-            total += g;
-
-            address h = drop.holderOf(id);
-            if (h != address(0) && tickr.balanceOf(h) >= MIN_HOLD) to[i] = h;
+            uint256 e = p.ethPot * weight / p.total;
+            uint256 t = p.tknPot * weight / p.total;
+            if (t != 0) tickr.safeTransfer(holder, t);
+            if (e != 0) _push(holder, e);
+            p.ethOut += e;
+            p.tknOut += t;
+            ++p.paid;
+            emit Paid(p.day, ids[i], holder, gains[i], e, t);
         }
-
-        uint256 ethPot = address(this).balance - owed;
-        uint256 tknPot = tickr.balanceOf(address(this));
-        uint256 ethOut;
-        uint256 tknOut;
-        uint256 paid;
-
-        // pass 2: pay
-        for (uint256 i; i < n; ++i) {
-            address h = to[i];
-            if (h == address(0)) continue;
-            uint256 e = ethPot * w[i] / total;
-            uint256 t = tknPot * w[i] / total;
-            if (t != 0) tickr.safeTransfer(h, t);
-            if (e != 0) _push(h, e);
-            ethOut += e;
-            tknOut += t;
-            ++paid;
-            emit Paid(day, ids[i], h, gains[i], e, t);
+        p.cursor = uint16(end);
+        emit SettlementProgress(p.day, end, p.count);
+        if (end == p.count) {
+            roundStartBlock[rounds.length] = p.startBlock;
+            rounds.push(
+                Round({
+                    day: p.day,
+                    gainers: p.count,
+                    paid: p.paid,
+                    weight: p.total,
+                    blockNo: uint64(_blockNo()),
+                    eth: uint128(p.ethOut),
+                    tkn: uint128(p.tknOut)
+                })
+            );
+            lastDay = p.day;
+            emit Settled(p.day, p.count, p.paid, p.total, p.ethOut, p.tknOut);
+            delete _pending;
         }
-
-        rounds.push(
-            Round({
-                day: day,
-                gainers: uint16(n),
-                paid: uint16(paid),
-                weight: uint32(total),
-                blockNo: uint64(_blockNo()),
-                eth: uint128(ethOut),
-                tkn: uint128(tknOut)
-            })
-        );
-        emit Settled(day, n, paid, total, ethOut, tknOut);
     }
 
     function claim() external nonReentrant {
@@ -192,11 +253,12 @@ contract GainPool is Ownable, ReentrancyGuard {
     /// @notice Earliest timestamp `day` can be settled (next weekday's 09:30 New York), 0 if never.
     function settleableAt(uint32 day) public view returns (uint256) {
         uint256 live = ITickr(address(tickr)).liveAt();
-        uint256 wd = (uint256(day) + 4) % 7; // 0 = Sunday
-        if (live == 0 || day <= lastDay || wd == 0 || wd == 6) return 0;
-        if (nyTime(day, CLOSE) <= live) return 0;
-        uint256 next = uint256(day) + (wd == 5 ? 3 : 1);
-        return nyTime(next, OPEN);
+        if (live == 0 || day <= lastDay || address(marketOracle) == address(0)) return 0;
+        (bytes32 commitment, uint64 openedAt, uint64 closedAt, uint64 nextOpen) = marketOracle.session(day);
+        if (commitment == bytes32(0) || openedAt < live || closedAt <= openedAt || nextOpen <= closedAt) return 0;
+        // The adapter must attest exchange holidays, early closes and the next real open.
+        if (openedAt != nyTime(day, OPEN) || closedAt / 1 days != openedAt / 1 days) return 0;
+        return nextOpen;
     }
 
     /// @notice UTC timestamp of New York wall-clock time `clock` on `day` (days since epoch).
@@ -243,6 +305,7 @@ contract GainPool is Ownable, ReentrancyGuard {
         uint256 at = settleableAt(day);
         if (at == 0) revert BadDay(day);
         if (block.timestamp < at) revert TooEarly(at);
+        if (marketOracle.nextSession(lastDay) != day) revert BadDay(day);
     }
 
     // Nitro chains report the L1 height in block.number; logs are indexed by L2 height.

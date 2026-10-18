@@ -1,4 +1,10 @@
 import { useEffect, useState } from "react";
+import {jsonResource,sessionRows} from "./reliable";
+import {numberLocale} from "./locale";
+import {encodeAbiParameters,keccak256,parseAbi} from "viem";
+import {addr,chain} from "../chain/config";
+import {pub} from "./wallet";
+import {markData} from "./reliable";
 
 // gains are in contract units: 1e6 = 100%, null = no print that day
 export type Session = { date: string; gains: (number | null)[] };
@@ -15,19 +21,30 @@ export type Board = {
 
 export const FULL = 1_000_000;
 
-let feed: Promise<Session[]> | undefined;
-
+const oracleAbi=parseAbi(["function session(uint32 day) view returns(bytes32,uint64,uint64,uint64)","function lastPublishedDay() view returns(uint32)"]);
+const loadSessions=jsonResource("sessions",["https://raw.githubusercontent.com/LIFNF/TickerDrop/main/data/verified-sessions.json",`${import.meta.env.BASE_URL}sessions.json`,`${import.meta.env.BASE_URL}backup/sessions.json`],sessionRows);
+async function verifiedSessions(){
+ const rows=await loadSessions();
+ const last=await pub.readContract({address:addr.marketOracle,abi:oracleAbi,functionName:"lastPublishedDay"});
+ if(!last)return [];
+ const latest=rows.find(s=>Date.parse(s.date+"T00:00:00Z")/86400000===last);
+ if(!latest)throw Error("Latest signed report is not available");
+ const board=boardOf(latest);
+ const [commitment,,,nextOpen]=await pub.readContract({address:addr.marketOracle,abi:oracleAbi,functionName:"session",args:[last]});
+ const digest=keccak256(encodeAbiParameters([{type:"uint256"},{type:"address"},{type:"uint32"},{type:"uint16[]"},{type:"uint32[]"}],[BigInt(chain.id),addr.pool,last,board.picks.map(p=>p.id),board.picks.map(p=>p.gain)]));
+ if(commitment!==digest||!nextOpen||Number(nextOpen)*1000>Date.now())throw Error("Unverified market report");
+ return [latest];
+}
 export function useSessions() {
-  const [list, setList] = useState<Session[]>([]);
-  useEffect(() => {
-    feed ??= fetch(`${import.meta.env.BASE_URL}sessions.json`)
-      .then((r) => (r.ok ? r.json() : []))
-      .catch(() => []);
-    feed.then(setList);
-  }, []);
+  const [list,setList]=useState<Session[]>([]);
+  useEffect(()=>{
+    let stopped=false;
+    const load=()=>verifiedSessions().then(v=>{if(!stopped){setList(v);markData("sessions","ok");}}).catch(()=>{if(!stopped){setList([]);markData("sessions","error");}});
+    void load(); const timer=setInterval(load,60_000);
+    return ()=>{stopped=true;clearInterval(timer);};
+  },[]);
   return list;
 }
-
 // same walk as GainPool.settle: gain desc, id asc, stop at 100%
 export function boardOf(s: Session): Board {
   const order: number[] = [];
@@ -52,4 +69,4 @@ export function boardOf(s: Session): Board {
   return { date: s.date, picks, green: order.length, red, sum };
 }
 
-export const gainPct = (units: number, dp = 2) => `${units > 0 ? "+" : ""}${(units / 1e4).toFixed(dp)}%`;
+export const gainPct = (units: number, dp = 2) => `${units > 0 ? "+" : ""}${(units / 1e4).toLocaleString(numberLocale(),{minimumFractionDigits:dp,maximumFractionDigits:dp})}%`;
