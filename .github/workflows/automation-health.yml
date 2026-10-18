@@ -1,0 +1,30 @@
+name: automation-credential-health
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: npm ci --omit=dev
+      - name: Verify hosted signer A
+        run: node keeper/check-automation.mjs
+        env:
+          AUTOMATION_KEY: ${{ secrets.AUTO_SIGNER_KEY_1 }}
+      - name: Verify hosted signer B
+        run: node keeper/check-automation.mjs
+        env:
+          AUTOMATION_KEY: ${{ secrets.AUTO_SIGNER_KEY_2 }}
+      - name: Verify hosted signer C
+        run: node keeper/check-automation.mjs
+        env:
+          AUTOMATION_KEY: ${{ secrets.AUTO_SIGNER_KEY_3 }}
+      - name: Verify funded relayer
+        run: node keeper/check-automation.mjs --relayer
+        env:
+          AUTOMATION_KEY: ${{ secrets.RELAYER_KEY }}
