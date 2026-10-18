@@ -1,5 +1,5 @@
 const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict');
-const {chromium}=require(process.argv[2]);
+const {chromium,devices}=require(process.argv[2]);
 const root=path.resolve('web/dist');
 const server=http.createServer((req,res)=>{
  const route=new URL(req.url,'http://localhost').pathname;
@@ -18,7 +18,7 @@ const server=http.createServer((req,res)=>{
  const browser=await chromium.launch({headless:true,executablePath:process.argv[3],...(proxy&&!proxy.startsWith('https://auth.privy.io')?{proxy:{server:proxy,bypass:'127.0.0.1,localhost'}}:{})});
  let debugPage;const errors=[],csp=[],consoleErrors=[];
  try{
-  const page=await browser.newPage({viewport:{width:1280,height:900}});debugPage=page;page.setDefaultTimeout(30000);
+  const page=await browser.newPage(process.env.TEST_MOBILE==='1'?devices['Pixel 7']:{viewport:{width:1280,height:900}});debugPage=page;page.setDefaultTimeout(30000);
   page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error'){consoleErrors.push(message.text().slice(0,900));if(/Content Security Policy|violates.*directive/i.test(message.text()))csp.push(message.text().slice(0,250));}});
   await page.addInitScript(()=>{
    if(window!==window.top||!['127.0.0.1','localhost','tickerdrop-theta.vercel.app'].includes(location.hostname))return;
@@ -70,7 +70,7 @@ const server=http.createServer((req,res)=>{
   await page.locator('.top>.btn').click();await page.locator('.wallet-manager[open]').waitFor();await page.locator('.wallet-disconnect').click({noWaitAfter:true});
   await page.waitForFunction(()=>!document.querySelector('.wallet-manager')?.open);
   assert.equal(await page.evaluate(()=>window.walletWrites),0);assert.equal(await page.evaluate(()=>window.walletSigns),0);assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({realPrivySdk:true,publicAppConfiguration:true,pixelModal:true,evmWalletDiscovery:true,userSelectsWallet:true,multipleWallets:true,switching:true,selectionRestored:true,disconnect:true,cspWarnings:csp,realTransactions:0,signatures:0,uncaughtErrors:0}));
+  console.log(JSON.stringify({realPrivySdk:true,mobileEmulation:process.env.TEST_MOBILE==='1',publicAppConfiguration:true,pixelModal:true,evmWalletDiscovery:true,userSelectsWallet:true,multipleWallets:true,switching:true,selectionRestored:true,disconnect:true,cspWarnings:csp,realTransactions:0,signatures:0,uncaughtErrors:0}));
  }catch(error){if(debugPage){console.error(JSON.stringify({pageErrors:errors,csp,consoleErrors,visible:(await debugPage.locator('body').innerText()).slice(0,1800)}));fs.mkdirSync('release',{recursive:true});await debugPage.screenshot({path:path.resolve('release/privy-wallet-failure.png')}).catch(()=>{});}throw error;}
  finally{await browser.close();dev?.kill();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 })().catch(error=>{console.error(error.stack||error.message);process.exitCode=1;});

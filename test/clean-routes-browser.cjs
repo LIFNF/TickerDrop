@@ -31,12 +31,12 @@ const server=http.createServer((req,res)=>{
   await page.goForward();await page.waitForURL(base+'/docs');
   assert.equal(await page.locator('.docs-contract').count(),5);
   assert.equal(await page.locator('.source-link').getAttribute('href'),'https://github.com/LIFNF/TickerDrop');
-  assert.ok((await page.locator('.docs-primary').innerText()).includes('0.9'));
+  assert.match(await page.locator('.docs-primary').innerText(),/90\s*%/);
   if(process.env.ALLOW_RPC==='1')await page.getByText('On-chain data synced').waitFor({timeout:30000});
   for(const [lang,title] of [['es','Documentación'],['zh-Hant','文件中心'],['ja','ドキュメント'],['en','Documentation']]){
    await page.locator('.language-switch select').selectOption(lang);
    assert.equal((await page.locator('.docs-heading h1').innerText()).toLocaleLowerCase(),title.toLocaleLowerCase());
-   assert.match(await page.locator('.docs-primary').innerText(),/0[.,]9/);
+   assert.match(await page.locator('.docs-primary').innerText(),/90\s*%/);
   }
   if(process.env.DOCS_SCREENSHOT==='1')await page.screenshot({path:path.resolve('reports/docs-desktop-2026-10-18.png')});
   await page.locator('.top .logo').click();await page.waitForURL(base+'/');
