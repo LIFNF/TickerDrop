@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "chainId": 4663,
+  "status": "active",
+  "contracts": {
+    "chainId": 4663,
+    "version": 2,
+    "status": "active",
+    "tickr": "0x1b6ae3921161339c351812777a25e4d0e8dd18a2",
+    "pool": "0xa3e5703ac6365f4802d39e6bca63ff120c0897e2",
+    "drop": "0xe8b4bc50c7b55d3f1a5ac46c8730865ff97d420a",
+    "liquidityVault": "0xca5D7dDA6A9b90bC8a32B71fbf8Df30c70036aD7",
+    "marketOracle": "0xf9a27c08da43302d1d14fd2b3c66037598afc951"
+  },
+  "compiler": {
+    "version": "0.8.28",
+    "optimizerRuns": 800,
+    "viaIR": true,
+    "evmVersion": "cancun"
+  },
+  "ownersRenounced": true,
+  "runtimeBytecodeVerified": true,
+  "automatedServices": "project-operated",
+  "productionPayoutObserved": false,
+  "checks": {
+    "site": "https://tickerdrop-theta.vercel.app",
+    "vercelDeployment": "dpl_53bXrovVMyupg9TAw9jf6bRZAhL3",
+    "sourceCommit": "ca185a1",
+    "automationRun": "https://github.com/LIFNF/TickerDrop/actions/runs/39140550859",
+    "quoteConnectivityRun": "https://github.com/LIFNF/TickerDrop/actions/runs/39140742429",
+    "credentialHealthRun": "https://github.com/LIFNF/TickerDrop/actions/runs/39141176517",
+    "productionPayoutObserved": false,
+    "publicSourceAuthorized": true
+  },
+  "limitations": [
+    "HTTP data sources and GitHub scheduling have no availability guarantee.",
+    "Two-of-three project-operated signing keys do not represent independent oracle operators.",
+    "No production payout has occurred; weekend idle checks are not evidence of a payout."
+  ]
+}
