@@ -68,6 +68,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error(e);
+  console.error('Settlement failed. Inspect protected operator diagnostics; raw provider errors are suppressed.');
   process.exit(1);
 });
