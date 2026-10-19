@@ -6,6 +6,7 @@ import {safeError} from './safe-error.mjs';
 import {parseTradingView,rankProgress} from './tradingview-parser.mjs';
 import {nasdaq,nyNow,isoOf} from './lib.mjs';
 import {writeSnapshot,readSnapshot} from './storage.mjs';
+import {referenceExpiry} from './reference-age.mjs';
 export async function captureTradingView(tickers){
  const rows=[],seen=new Set();let progress,total=0;
  for(let offset=0;offset<6400;offset+=100){
@@ -34,6 +35,7 @@ async function main(){
  const {rows,progress,total}=await captureTradingView(tickers);
  const capturedAt=new Date().toISOString();
  const record={source:'TradingView',status:'reference',capturedAt,universe:tickers.length,covered:rows.length,matched:total,ranked:progress.ranked,rankingExhausted:progress.rankingExhausted,rows};
+ try{record.validUntil=referenceExpiry(await nasdaq('market-info'),capturedAt);}catch{/* Calendar unavailable: frontend applies the conservative age limit. */}
  for(const rel of ['../data/reference-quotes.json','../web/public/reference-quotes.json']){
   const file=fileURLToPath(new URL(rel,import.meta.url));mkdirSync(dirname(file),{recursive:true});writeFileSync(file,JSON.stringify(record)+'\n');
  }

@@ -1,10 +1,14 @@
 {
   "chainId": 4663,
-  "version": 2,
+  "version": 3,
   "status": "active",
-  "tickr": "0x1b6ae3921161339c351812777a25e4d0e8dd18a2",
-  "pool": "0xa3e5703ac6365f4802d39e6bca63ff120c0897e2",
-  "drop": "0xe8b4bc50c7b55d3f1a5ac46c8730865ff97d420a",
-  "liquidityVault": "0xca5D7dDA6A9b90bC8a32B71fbf8Df30c70036aD7",
-  "marketOracle": "0xf9a27c08da43302d1d14fd2b3c66037598afc951"
+  "launchVerified": true,
+  "deploymentBlock": 92425675,
+  "mintRecipient": "0x8638636536Ed50fC1cCCDFDa1790aCC83E39643A",
+  "quoteSigners": ["0xC897c0E9dC17B97269EEA07D6C3740eAD1bc0424","0x79555866BA7E4A0AB735faB866E37241C1F202F5","0x7826737D43b33FD2743bc39342d84A794d5EbB55"],
+  "tickr": "0x84c5df92d0e924ebd0e9fada555a11fd016c70b2",
+  "pool": "0x33625d4779c7b0f373e0995b373244c7cc67ecfc",
+  "drop": "0x0e0342c6ae15784a8b2592cbb48a303c3e309bdd",
+  "liquidityVault": "0x1966Dd0Ec3c915A9af5F06a00C5C18F34f79A7aF",
+  "marketOracle": "0xf49727967f4c5fb3381d1c879015fe5ab00bd149"
 }

@@ -7,6 +7,8 @@
 //   DRY=1         print the rounds without sending
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import {execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 import { createWalletClient, http, encodeAbiParameters, keccak256, stringToHex, isHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { buildRound } from "./round.mjs";
@@ -27,7 +29,15 @@ async function main() {
   const prev = isoOf(info.previousTradeDate);
   const launchAt = Number(await pub.readContract({address:deployed.tickr,abi:[{type:"function",name:"liveAt",stateMutability:"view",inputs:[],outputs:[{type:"uint64"}]}],functionName:"liveAt"}));
   if (!launchAt) return log("trading has not launched");
-  const lastDay = Number(await pub.readContract({ address: deployed.pool, abi: poolAbi, functionName: "lastDay" }));
+  let lastDay = Number(await pub.readContract({ address: deployed.pool, abi: poolAbi, functionName: "lastDay" }));
+  if(deployed.version>=3&&process.env.DRY!=='1'){
+    for(let rounds=0;rounds<32;rounds++){
+      const next=await pub.readContract({address:deployed.marketOracle,abi:marketOracleAbi,functionName:'nextSession',args:[lastDay]});
+      if(!next||next>dayOf(prev)||existsSync(new URL(dateOf(next)+'.json',sessionsDir)))break;
+      execFileSync(process.execPath,[fileURLToPath(new URL('recover-published.mjs',import.meta.url)),String(next),'--resume'],{stdio:'inherit',timeout:10*60000});
+      lastDay=Number(await pub.readContract({address:deployed.pool,abi:poolAbi,functionName:'lastDay'}));
+    }
+  }
 
   const pending = (existsSync(sessionsDir) ? readdirSync(sessionsDir) : [])
     .filter((f) => /^\d{4}-\d{2}-\d{2}\.json$/.test(f))
@@ -73,6 +83,8 @@ async function main() {
       const quotesHash = keccak256(stringToHex(sessionText));
       if (attestations.day !== day || attestations.quotesHash !== quotesHash || !Array.isArray(attestations.signatures))
         throw new Error(`${date}: attestations do not match the recorded quotes`);
+      if(deployed.version>=3&&attestations.signerEpoch!==Number(await pub.readContract({address:oracle,abi:marketOracleAbi,functionName:'signerEpoch'})))
+        throw new Error(`${date}: signature epoch is no longer authorized`);
       const signatures = attestations.signatures
         .filter(x=>typeof x.signer==="string" && isHex(x.signature) && x.signature.length===132)
         .sort((a,b)=>a.signer.toLowerCase().localeCompare(b.signer.toLowerCase()));
@@ -81,6 +93,34 @@ async function main() {
         throw new Error(`${date}: independent signature quorum missing`);
       for (const x of signatures) if (!await pub.readContract({address:oracle,abi:marketOracleAbi,functionName:"isSigner",args:[x.signer]}))
         throw new Error(`${date}: unrecognized quote signer`);
+      if(deployed.version>=3){
+        const previousDay=await pub.readContract({address:oracle,abi:marketOracleAbi,functionName:'lastPublishedDay'});
+        if(previousDay){
+          const required=await pub.readContract({address:oracle,abi:marketOracleAbi,functionName:'expectedNextOpen',args:[previousDay]});
+          if(required!==BigInt(openedAt)){
+            const fix=attestations.calendarCorrection;
+            if(!fix||fix.previousDay!==previousDay||BigInt(fix.expected)!==required||fix.corrected!==openedAt||!Array.isArray(fix.signatures))throw Error(`${date}: quorum-approved calendar repair required`);
+            const args=[previousDay,required,BigInt(openedAt),fix.evidenceHash,fix.signatures.map(x=>x.signature)];
+            let proposal=await pub.readContract({address:oracle,abi:marketOracleAbi,functionName:'pendingCalendarCorrection'});
+            if(proposal[0]&&proposal[0]!==previousDay){
+              if(dry)return log('Stale calendar proposal needs permissionless cleanup');
+              const tx=await wallet.writeContract({address:oracle,abi:marketOracleAbi,functionName:'discardStaleCalendarCorrection'});
+              if((await pub.waitForTransactionReceipt({hash:tx})).status!=='success')throw Error('Stale calendar proposal cleanup reverted');
+              proposal=await pub.readContract({address:oracle,abi:marketOracleAbi,functionName:'pendingCalendarCorrection'});
+            }
+            if(!proposal[0]){
+              const correction=await pub.simulateContract({account,address:oracle,abi:marketOracleAbi,functionName:'proposeCalendarCorrection',args});
+              if(!dry){const tx=await wallet.writeContract(correction.request);if((await pub.waitForTransactionReceipt({hash:tx})).status!=='success')throw Error('Calendar proposal reverted');}
+              return log('Calendar repair proposed; waiting for the on-chain 30-minute review period');
+            }
+            if(proposal[1]!==required||proposal[2]!==BigInt(openedAt)||proposal[6]!==fix.evidenceHash)throw Error('Pending calendar proposal differs from approved evidence');
+            const block=await pub.getBlock();
+            if(block.timestamp<proposal[3])return log('Calendar repair is timelocked; a later run will execute it');
+            const correction=await pub.simulateContract({account,address:oracle,abi:marketOracleAbi,functionName:'executeCalendarCorrection'});
+            if(!dry){const tx=await wallet.writeContract(correction.request);if((await pub.waitForTransactionReceipt({hash:tx})).status!=='success')throw Error('Calendar execution reverted');}
+          }
+        }
+      }
       if (dry) { log(`${date}: quote signatures ready; publication and settlement not sent`); continue; }
       const {request}=await pub.simulateContract({account,address:oracle,abi:marketOracleAbi,functionName:"publish",args:[day,picked.map(p=>p.id),picked.map(p=>p.g),BigInt(openedAt),BigInt(closedAt),BigInt(nextOpen),quotesHash,signatures.map(x=>x.signature)]});
       const hash = await wallet.writeContract(request);

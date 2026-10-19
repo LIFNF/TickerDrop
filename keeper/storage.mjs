@@ -15,7 +15,16 @@ export function writeSnapshot(file,record,tickers){
  try{
   writeFileSync(temporary,JSON.stringify(record)+'\n',{flag:'wx'});created=true;
   // Atomic, exclusive publication. A concurrent collector cannot overwrite a committed close.
-  try{linkSync(temporary,file);}catch(e){if(e.code!=='EEXIST')throw e;readSnapshot(file,record.date,tickers);return false;}
+  try{linkSync(temporary,file);}catch(e){
+   if(e.code==='EEXIST'){readSnapshot(file,record.date,tickers);return false;}
+   // Windows may deny hard links in a sandbox. Keep exclusive creation semantics
+   // with wx rather than falling back to an overwrite-capable rename.
+   if(e.code!=='EPERM'&&e.code!=='EACCES')throw e;
+   try{writeFileSync(file,JSON.stringify(record)+'\n',{flag:'wx'});}catch(inner){
+    if(inner.code==='EEXIST'){readSnapshot(file,record.date,tickers);return false;}
+    throw inner;
+   }
+  }
   return true;
  }finally{if(created)unlinkSync(temporary);}
 }

@@ -4,7 +4,23 @@ on:
 permissions:
   contents: read
 jobs:
-  verify:
+  verify-signers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        signer: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: npm ci --omit=dev
+      - name: Verify one isolated hosted signer
+        run: node keeper/check-automation.mjs
+        env:
+          AUTOMATION_KEY: ${{ secrets[format('AUTO_SIGNER_KEY_{0}', matrix.signer)] }}
+  verify-relayer:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -12,18 +28,6 @@ jobs:
         with:
           persist-credentials: false
       - run: npm ci --omit=dev
-      - name: Verify hosted signer A
-        run: node keeper/check-automation.mjs
-        env:
-          AUTOMATION_KEY: ${{ secrets.AUTO_SIGNER_KEY_1 }}
-      - name: Verify hosted signer B
-        run: node keeper/check-automation.mjs
-        env:
-          AUTOMATION_KEY: ${{ secrets.AUTO_SIGNER_KEY_2 }}
-      - name: Verify hosted signer C
-        run: node keeper/check-automation.mjs
-        env:
-          AUTOMATION_KEY: ${{ secrets.AUTO_SIGNER_KEY_3 }}
       - name: Verify funded relayer
         run: node keeper/check-automation.mjs --relayer
         env:

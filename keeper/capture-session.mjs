@@ -9,7 +9,7 @@ function output(ready,date=''){
  if(process.env.GITHUB_OUTPUT)appendFileSync(process.env.GITHUB_OUTPUT,`ready=${ready}\ndate=${date}\n`);
 }
 async function main(){
- if(!isLive()){console.log('V2 deployment pending; automation is not yet operational.');return output(false);}
+ if(!isLive()){console.log('Deployment pending; automation is not yet operational.');return output(false);}
  const now=nyNow(),info=await nasdaq('market-info');
  if(!info.isBusinessDay||info.closeRaw?.slice(0,10)!==now.date)return output(false);
  const close=Number(info.closeRaw.slice(11,13))*60+Number(info.closeRaw.slice(14,16));
@@ -20,7 +20,7 @@ async function main(){
  if(existsSync(signedDir)&&readdirSync(signedDir).some(name=>/^0x[a-fA-F0-9]{40}\.json$/.test(name)))return output(true,now.date);
  const {rows,progress,total}=await captureTradingView(tickers);
  if(total!==tickers.length)throw Error('Collection coverage is incomplete');
- const record={date:now.date,open:info.openRaw,close:info.closeRaw,nextOpen:isoOf(info.nextTradeDate)+'T09:30:00',takenAt:new Date().toISOString(),source:'TradingView delayed screener',status:'provisional',ranked:progress.ranked,rankingExhausted:progress.rankingExhausted,prices:progress.ranked.map(p=>rows.find(q=>q.id===p.id)),matched:total};
+ const record={date:now.date,previousDate:isoOf(info.previousTradeDate),open:info.openRaw,close:info.closeRaw,nextOpen:isoOf(info.nextTradeDate)+'T09:30:00',takenAt:new Date().toISOString(),source:'TradingView delayed screener',status:'provisional',ranked:progress.ranked,rankingExhausted:progress.rankingExhausted,prices:progress.ranked.map(p=>rows.find(q=>q.id===p.id)),matched:total};
  sessionSchedule(record,{},record.date);
  const dir=new URL('data/candidates/',root);mkdirSync(dir,{recursive:true});
  const target=new URL(now.date+'.json',dir),temporary=new URL(now.date+'.'+process.pid+'.tmp',dir);

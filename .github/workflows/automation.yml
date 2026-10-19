@@ -1,10 +1,10 @@
 name: automated-market-settlement
 on:
   schedule:
-    - cron: "17,37,57 13-23 * * 1-5"
+    - cron: "7,37 * * * *"
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: market-data
   cancel-in-progress: false
@@ -12,47 +12,148 @@ jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      ready: ${{ steps.capture.outputs.ready }}
+      date: ${{ steps.capture.outputs.date }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
       - run: npm ci --omit=dev
       - name: Capture eligible regular-session close
         id: capture
         run: node keeper/capture-session.mjs
-      - name: Automatic source review A
-        if: steps.capture.outputs.ready == 'true'
-        continue-on-error: true
-        run: node keeper/auto-attest.mjs '${{ steps.capture.outputs.date }}'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: market-candidate
+          path: data/
+          retention-days: 7
+  review:
+    needs: run
+    if: needs.run.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        signer: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: npm ci --omit=dev
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: market-candidate
+          path: data/
+      - name: Validate on an isolated runner with one signing key
         env:
-          AUTO_SIGNER_KEY: ${{ secrets.AUTO_SIGNER_KEY_1 }}
-      - name: Automatic source review B
-        if: steps.capture.outputs.ready == 'true'
-        continue-on-error: true
-        run: node keeper/auto-attest.mjs '${{ steps.capture.outputs.date }}'
+          AUTO_SIGNER_KEY: ${{ secrets[format('AUTO_SIGNER_KEY_{0}', matrix.signer)] }}
+          AUTO_SIGNER_NEXT_KEY: ${{ secrets[format('AUTO_SIGNER_NEXT_KEY_{0}', matrix.signer)] }}
+          SESSION_DATE: ${{ needs.run.outputs.date }}
+          OPERATOR_ARTIFACT_DIR: operator-output
+        run: node keeper/auto-attest.mjs "$SESSION_DATE"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: market-review-${{ matrix.signer }}
+          path: operator-output/
+          if-no-files-found: ignore
+          retention-days: 7
+  calendar-review:
+    needs: run
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        signer: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: npm ci --omit=dev
+      - name: Refresh one operator's cancelled-calendar proof
+        run: node keeper/refresh-calendar.mjs
         env:
-          AUTO_SIGNER_KEY: ${{ secrets.AUTO_SIGNER_KEY_2 }}
-      - name: Automatic source review C
-        if: steps.capture.outputs.ready == 'true'
-        continue-on-error: true
-        run: node keeper/auto-attest.mjs '${{ steps.capture.outputs.date }}'
-        env:
-          AUTO_SIGNER_KEY: ${{ secrets.AUTO_SIGNER_KEY_3 }}
+          AUTO_SIGNER_KEY: ${{ secrets[format('AUTO_SIGNER_KEY_{0}', matrix.signer)] }}
+          AUTO_SIGNER_NEXT_KEY: ${{ secrets[format('AUTO_SIGNER_NEXT_KEY_{0}', matrix.signer)] }}
+          OPERATOR_ARTIFACT_DIR: operator-output
+      - name: Public operator status marker
+        run: |
+          mkdir -p operator-output
+          echo 'public operator proofs only' > operator-output/status-${{ matrix.signer }}.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: calendar-review-${{ matrix.signer }}
+          path: operator-output/
+          if-no-files-found: ignore
+  publish:
+    needs: [run, review, calendar-review]
+    if: always() && needs.run.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: npm ci --omit=dev
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: market-candidate
+          path: data/
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: needs.run.outputs.ready == 'true'
+        with:
+          pattern: market-review-*
+          merge-multiple: true
+          path: data/attestations/
       - name: Finalize a verified signature quorum
-        if: steps.capture.outputs.ready == 'true'
-        run: node keeper/assemble-attestations.mjs '${{ steps.capture.outputs.date }}'
+        if: needs.run.outputs.ready == 'true'
+        env:
+          SESSION_DATE: ${{ needs.run.outputs.date }}
+        run: node keeper/assemble-attestations.mjs "$SESSION_DATE"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: calendar-review-*
+          merge-multiple: true
+          path: data/attestations/
+      - name: Assemble refreshed calendar approvals
+        run: node keeper/assemble-pending-calendar.mjs
+      - name: Persist verified inputs before any on-chain publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node tools/check-secrets.mjs
+          for directory in data/candidates data/attestations data/sessions; do
+            if [ -d "$directory" ]; then git add "$directory"; fi
+          done
+          git diff --cached --quiet && exit 0
+          git config user.name tickerdrop-bot
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'data: preserve verified inputs before publication'
+          git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push
       - name: Publish and complete due settlements
         run: node keeper/run-automatic.mjs
         env:
           RELAYER_KEY: ${{ secrets.RELAYER_KEY }}
+      - name: Monitor confirmed protocol events and pinned DEX
+        if: always()
+        run: node keeper/monitor-v3.mjs
       - name: Save public reports and recovery state
         if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           node tools/check-secrets.mjs
           for directory in data/candidates data/attestations data/sessions; do
             if [ -d "$directory" ]; then git add "$directory"; fi
           done
           if [ -f data/verified-sessions.json ]; then git add data/verified-sessions.json; fi
+          if [ -f data/monitor-state.json ]; then git add data/monitor-state.json; fi
           git diff --cached --quiet && exit 0
           git config user.name tickerdrop-bot
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'data: preserve automated market review and settlement state'
-          git push
+          git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push
